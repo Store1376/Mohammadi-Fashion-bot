@@ -128,13 +128,10 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "add_product":
-        await query.edit_message_text(
-            "➕ افزودن محصول\n\n"
-            "این قسمت را در مرحله بعد فعال می‌کنیم.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 برگشت", callback_data="admin")]
-            ])
-        )
+    await query.edit_message_text(
+        "➕ افزودن محصول\n\n"
+        "لطفاً نام محصول را همینجا ارسال کنید."
+    )
 
     elif query.data == "add_photo":
         await query.edit_message_text(
