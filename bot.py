@@ -66,11 +66,19 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "contact":
-        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="home")]]
-        await query.edit_message_text(
-            "📞 تماس با ما\n\nاطلاعات تماس فروشگاه بعداً اضافه می‌شود.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+    keyboard = [
+        [InlineKeyboardButton("💬 پیام در تلگرام", url="https://t.me/Rohullah1375")],
+        [InlineKeyboardButton("🔙 برگشت", callback_data="home")],
+    ]
+
+    await query.edit_message_text(
+        "📞 تماس با ما\n\n"
+        "📱 شماره تماس اول: 0775816499\n"
+        "📱 شماره تماس دوم: 0744763112\n"
+        "💬 تلگرام: @Rohullah1375\n\n"
+        "🌸 Mohammadi Fashion 🌸",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
 
     elif query.data == "home":
         keyboard = [
