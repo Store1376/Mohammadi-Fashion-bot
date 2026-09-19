@@ -11,7 +11,7 @@ from telegram.ext import (
     filters,
 )
 
-TOKEN = "8850373531:AAF6hj98W0rOJIpNXuTZL5hQSvvYhnELY10"
+TOKEN = "8850373531:AAGJRJL7ufyIVFn6xC4K3m8cCtRvdV7MX4E"
 ADMIN_ID = 8276323231
 
 PRODUCTS_FILE = "products.json"
