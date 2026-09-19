@@ -1,4 +1,4 @@
-import json
+     import json
 import os
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -103,7 +103,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_id = query.data.replace("product_", "")
 
         products = load_products()
-
         product = None
 
         for item in products:
@@ -137,10 +136,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption=text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
             )
-
-            await query.edit_message_text(
-                "🖼️ عکس محصول بالا نمایش داده شد."
-            )
         else:
             await query.edit_message_text(
                 text,
@@ -148,15 +143,31 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif query.data.startswith("order_"):
+        product_id = query.data.replace("order_", "")
+
+        products = load_products()
+        product = None
+
+        for item in products:
+            if item["id"] == product_id:
+                product = item
+                break
+
+        if product is None:
+            await query.edit_message_text("❌ محصول پیدا نشد.")
+            return
+
+        context.user_data["ordering"] = True
+        context.user_data["order_product_id"] = product_id
+        context.user_data["order_product_name"] = product["name"]
+        context.user_data["order_product_price"] = product["price"]
+        context.user_data["order_step"] = "name"
+
         await query.edit_message_text(
-            "🛒 ثبت سفارش\n\n"
-            "لطفاً نام و شماره تماس خود را ارسال کنید.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(
-                    "🔙 برگشت",
-                    callback_data="majlesi"
-                )]
-            ]),
+            f"🛒 ثبت سفارش\n\n"
+            f"👗 محصول: {product['name']}\n"
+            f"💰 قیمت: {product['price']}\n\n"
+            f"لطفاً نام خود را ارسال کنید."
         )
 
     elif query.data == "sarpatloni":
@@ -278,7 +289,71 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    user_id = update.effective_user.id
+
+    # -------------------------
+    # ثبت سفارش مشتری
+    # -------------------------
+    if context.user_data.get("ordering"):
+
+        step = context.user_data.get("order_step")
+
+        if step == "name":
+            customer_name = update.message.text.strip()
+
+            context.user_data["customer_name"] = customer_name
+            context.user_data["order_step"] = "phone"
+
+            await update.message.reply_text(
+                f"✅ نام ثبت شد: {customer_name}\n\n"
+                "📱 حالا لطفاً شماره تماس خود را ارسال کنید."
+            )
+
+            return
+
+        if step == "phone":
+            customer_phone = update.message.text.strip()
+
+            product_name = context.user_data.get("order_product_name")
+            product_price = context.user_data.get("order_product_price")
+            customer_name = context.user_data.get("customer_name")
+
+            username = update.effective_user.username
+
+            if username:
+                telegram_info = f"@{username}"
+            else:
+                telegram_info = "ندارد"
+
+            # ارسال سفارش برای مدیر
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    "🔔 سفارش جدید دریافت شد!\n\n"
+                    f"👗 محصول: {product_name}\n"
+                    f"💰 قیمت: {product_price}\n\n"
+                    f"👤 نام مشتری: {customer_name}\n"
+                    f"📱 شماره تماس: {customer_phone}\n"
+                    f"💬 تلگرام مشتری: {telegram_info}\n\n"
+                    "🌸 Mohammadi Fashion 🌸"
+                )
+            )
+
+            await update.message.reply_text(
+                "✅ سفارش شما با موفقیت ثبت شد! 🎉\n\n"
+                "📦 سفارش شما برای فروشگاه ارسال شد.\n"
+                "📞 به‌زودی با شما تماس گرفته می‌شود.\n\n"
+                "🌸 تشکر از اعتماد شما به Mohammadi Fashion 🌸"
+            )
+
+            context.user_data.clear()
+
+            return
+
+    # -------------------------
+    # بخش مدیریت فروشگاه
+    # -------------------------
+    if user_id != ADMIN_ID:
         return
 
     if context.user_data.get("adding_product"):
@@ -291,7 +366,7 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ نام محصول ثبت شد:\n\n"
             f"👗 {product_name}\n\n"
-            f"💰 حالا قیمت محصول را ارسال کن."
+            "💰 حالا قیمت محصول را ارسال کن."
         )
 
         return
@@ -305,7 +380,7 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(
             f"💰 قیمت {price} ثبت شد.\n\n"
-            f"🖼️ حالا عکس محصول را ارسال کن."
+            "🖼️ حالا عکس محصول را ارسال کن."
         )
 
         return
@@ -341,7 +416,7 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👗 {product_name}\n"
             f"💰 قیمت: {product_price}\n"
             "🖼️ عکس: ثبت شد\n\n"
-            "حالا محصول در بخش «لباس‌های مجلسی» نمایش داده می‌شود."
+            "محصول اکنون در بخش «لباس‌های مجلسی» نمایش داده می‌شود."
         )
 
 
@@ -377,4 +452,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()   
