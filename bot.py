@@ -6,7 +6,12 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 TOKEN = "8850373531:AAHe0CfB5f2-C382MtqG3wt0RxBLvjXFO8Q"
 
 # بعداً شناسه عددی خودت را اینجا قرار می‌دهیم
-ADMIN_ID = 0
+ADMIN_ID = ⚙️ مدیریت فروشگاه
+
+🆔 شناسه عددی شما:
+8276323231
+
+این عدد را برای خودت نگه دار.
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
