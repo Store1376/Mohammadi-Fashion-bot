@@ -47,7 +47,6 @@ if query.data == "admin":
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
     
-
     elif query.data == "majlesi":
         keyboard = [
             [InlineKeyboardButton("✨ بخمل نگین‌دار — ۷۰۰", callback_data="velvet")],
