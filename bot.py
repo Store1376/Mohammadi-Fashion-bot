@@ -9,9 +9,6 @@ TOKEN = "8850373531:AAHe0CfB5f2-C382MtqG3wt0RxBLvjXFO8Q"
 
 ADMIN_ID = 8276323231
 
-این عدد را برای خودت نگه دار.
-
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("👗 لباس‌های مجلسی", callback_data="majlesi")],
