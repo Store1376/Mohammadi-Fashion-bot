@@ -22,6 +22,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    if query.data == "admin":
+    user_id = query.from_user.id
+
+    await query.edit_message_text(
+        f"⚙️ مدیریت فروشگاه\n\n"
+        f"🆔 شناسه عددی شما:\n{user_id}\n\n"
+        f"این عدد را برای خودت نگه دار.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 برگشت", callback_data="home")]
+        ]),
+    )
+
+elif query.data == "majlesi":
 
     if query.data == "majlesi":
         keyboard = [
