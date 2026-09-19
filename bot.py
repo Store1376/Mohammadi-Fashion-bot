@@ -28,18 +28,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+if query.data == "admin":
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+        return
 
-    if query.data == "admin":
-        user_id = query.from_user.id
+    keyboard = [
+        [InlineKeyboardButton("➕ افزودن محصول", callback_data="add_product")],
+        [InlineKeyboardButton("🖼️ افزودن عکس", callback_data="add_photo")],
+        [InlineKeyboardButton("💰 تغییر قیمت", callback_data="change_price")],
+        [InlineKeyboardButton("🗑️ حذف محصول", callback_data="delete_product")],
+        [InlineKeyboardButton("🔙 برگشت", callback_data="home")],
+    ]
 
-        await query.edit_message_text(
-            f"⚙️ مدیریت فروشگاه\n\n"
-            f"🆔 شناسه عددی شما:\n{user_id}\n\n"
-            f"این عدد را برای خودت نگه دار.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 برگشت", callback_data="home")]
-            ]),
-        )
+    await query.edit_message_text(
+        "⚙️ مدیریت فروشگاه\n\n"
+        "لطفاً یکی از گزینه‌ها را انتخاب کنید:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    
 
     elif query.data == "majlesi":
         keyboard = [
