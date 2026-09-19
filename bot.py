@@ -31,8 +31,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"این عدد را برای خودت نگه دار.",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 برگشت", callback_data="home")]
-        ]),
-    )
+        
+    
 
 elif query.data == "majlesi":
 
