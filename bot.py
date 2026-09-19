@@ -1,7 +1,12 @@
+
 import json
 import os
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -24,7 +29,7 @@ def load_products():
     try:
         with open(PRODUCTS_FILE, "r", encoding="utf-8") as file:
             return json.load(file)
-    except:
+    except Exception:
         return []
 
 
@@ -33,19 +38,23 @@ def save_products(products):
         json.dump(products, file, ensure_ascii=False, indent=2)
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
+def home_keyboard():
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("👗 لباس‌های مجلسی", callback_data="majlesi")],
         [InlineKeyboardButton("👖 سرپطلونی", callback_data="sarpatloni")],
         [InlineKeyboardButton("🧵 سفارش دوخت", callback_data="dokht")],
         [InlineKeyboardButton("📞 تماس با ما", callback_data="contact")],
         [InlineKeyboardButton("⚙️ مدیریت فروشگاه", callback_data="admin")],
-    ]
+    ])
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
 
     await update.message.reply_text(
         "🌸 به Mohammadi Fashion خوش آمدید 🌸\n\n"
         "عرضه کننده لباس‌های زنانه",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=home_keyboard(),
     )
 
 
@@ -53,26 +62,23 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if query.data == "admin":
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
-            return
+    # -------------------------
+    # خانه
+    # -------------------------
+    if query.data == "home":
+        context.user_data.clear()
 
-        keyboard = [
-            [InlineKeyboardButton("➕ افزودن محصول", callback_data="add_product")],
-            [InlineKeyboardButton("🖼️ افزودن عکس", callback_data="add_photo")],
-            [InlineKeyboardButton("💰 تغییر قیمت", callback_data="change_price")],
-            [InlineKeyboardButton("🗑️ حذف محصول", callback_data="delete_product")],
-            [InlineKeyboardButton("🔙 برگشت", callback_data="home")],
-        ]
-
-        await query.edit_message_text(
-            "⚙️ مدیریت فروشگاه\n\n"
-            "لطفاً یکی از گزینه‌ها را انتخاب کنید:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+        await query.message.reply_text(
+            "🌸 Mohammadi Fashion 🌸\n\n"
+            "لطفاً گزینه مورد نظر را انتخاب کنید:",
+            reply_markup=home_keyboard(),
         )
+        return
 
-    elif query.data == "majlesi":
+    # -------------------------
+    # لباس‌های مجلسی
+    # -------------------------
+    if query.data == "majlesi":
         products = load_products()
 
         keyboard = []
@@ -85,21 +91,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             ])
 
+        keyboard.append([
+            InlineKeyboardButton("🔙 برگشت", callback_data="home")
+        ])
+
         if not products:
             text = "👗 لباس‌های مجلسی\n\nهنوز محصولی اضافه نشده است."
         else:
             text = "👗 لباس‌های مجلسی\n\nمحصولات موجود:"
 
-        keyboard.append([
-            InlineKeyboardButton("🔙 برگشت", callback_data="home")
-        ])
-
-        await query.edit_message_text(
+        await query.message.reply_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
+        return
 
-    elif query.data.startswith("product_"):
+    # -------------------------
+    # نمایش محصول
+    # -------------------------
+    if query.data.startswith("product_"):
         product_id = query.data.replace("product_", "")
 
         products = load_products()
@@ -111,10 +121,10 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
 
         if product is None:
-            await query.edit_message_text("❌ محصول پیدا نشد.")
+            await query.message.reply_text("❌ محصول پیدا نشد.")
             return
 
-        keyboard = [
+        keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(
                 "🛒 سفارش این لباس",
                 callback_data=f"order_{product_id}"
@@ -123,7 +133,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🔙 برگشت",
                 callback_data="majlesi"
             )],
-        ]
+        ])
 
         text = (
             f"✨ {product['name']} ✨\n\n"
@@ -134,15 +144,20 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_photo(
                 photo=product["photo"],
                 caption=text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
             )
         else:
-            await query.edit_message_text(
+            await query.message.reply_text(
                 text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
             )
 
-    elif query.data.startswith("order_"):
+        return
+
+    # -------------------------
+    # سفارش محصول
+    # -------------------------
+    if query.data.startswith("order_"):
         product_id = query.data.replace("order_", "")
 
         products = load_products()
@@ -154,36 +169,31 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
 
         if product is None:
-            await query.edit_message_text("❌ محصول پیدا نشد.")
+            await query.message.reply_text(
+                "❌ این محصول دیگر موجود نیست."
+            )
             return
 
+        # ذخیره اطلاعات سفارش
         context.user_data["ordering"] = True
+        context.user_data["order_step"] = "name"
         context.user_data["order_product_id"] = product_id
         context.user_data["order_product_name"] = product["name"]
         context.user_data["order_product_price"] = product["price"]
-        context.user_data["order_step"] = "name"
 
-        await query.edit_message_text(
-            f"🛒 ثبت سفارش\n\n"
+        await query.message.reply_text(
+            "🛒 ثبت سفارش\n\n"
             f"👗 محصول: {product['name']}\n"
             f"💰 قیمت: {product['price']}\n\n"
-            f"لطفاً نام خود را ارسال کنید."
+            "👤 لطفاً نام خود را ارسال کنید:"
         )
+        return
 
-    elif query.data == "sarpatloni":
-        await query.edit_message_text(
-            "👖 سرپطلونی\n\n"
-            "محصولات این بخش به‌زودی اضافه می‌شوند.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(
-                    "🔙 برگشت",
-                    callback_data="home"
-                )]
-            ]),
-        )
-
-    elif query.data == "dokht":
-        await query.edit_message_text(
+    # -------------------------
+    # سفارش دوخت
+    # -------------------------
+    if query.data == "dokht":
+        await query.message.reply_text(
             "🧵 سفارش دوخت\n\n"
             "لطفاً مشخصات لباس مورد نظر خود را ارسال کنید.",
             reply_markup=InlineKeyboardMarkup([
@@ -193,9 +203,29 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )]
             ]),
         )
+        return
 
-    elif query.data == "contact":
-        keyboard = [
+    # -------------------------
+    # سرپطلونی
+    # -------------------------
+    if query.data == "sarpatloni":
+        await query.message.reply_text(
+            "👖 سرپطلونی\n\n"
+            "محصولات این بخش به‌زودی اضافه می‌شوند.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(
+                    "🔙 برگشت",
+                    callback_data="home"
+                )]
+            ]),
+        )
+        return
+
+    # -------------------------
+    # تماس با ما
+    # -------------------------
+    if query.data == "contact":
+        keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(
                 "💬 پیام در تلگرام",
                 url="https://t.me/Rohullah1375"
@@ -204,67 +234,94 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🔙 برگشت",
                 callback_data="home"
             )],
-        ]
+        ])
 
-        await query.edit_message_text(
+        await query.message.reply_text(
             "📞 تماس با ما\n\n"
             "📱 شماره تماس اول: 0775816499\n"
             "📱 شماره تماس دوم: 0744763112\n"
             "💬 تلگرام: @Rohullah1375\n\n"
             "🌸 Mohammadi Fashion 🌸",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=keyboard,
         )
+        return
 
-    elif query.data == "home":
-        keyboard = [
-            [InlineKeyboardButton(
-                "👗 لباس‌های مجلسی",
-                callback_data="majlesi"
-            )],
-            [InlineKeyboardButton(
-                "👖 سرپطلونی",
-                callback_data="sarpatloni"
-            )],
-            [InlineKeyboardButton(
-                "🧵 سفارش دوخت",
-                callback_data="dokht"
-            )],
-            [InlineKeyboardButton(
-                "📞 تماس با ما",
-                callback_data="contact"
-            )],
-            [InlineKeyboardButton(
-                "⚙️ مدیریت فروشگاه",
-                callback_data="admin"
-            )],
-        ]
-
-        await query.edit_message_text(
-            "🌸 Mohammadi Fashion 🌸\n\n"
-            "لطفاً گزینه مورد نظر را انتخاب کنید:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-
-    elif query.data == "add_product":
+    # -------------------------
+    # مدیریت فروشگاه
+    # -------------------------
+    if query.data == "admin":
         if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            await query.answer(
+                "⛔ دسترسی ندارید.",
+                show_alert=True
+            )
             return
 
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "➕ افزودن محصول",
+                callback_data="add_product"
+            )],
+            [InlineKeyboardButton(
+                "🖼️ افزودن عکس",
+                callback_data="add_photo"
+            )],
+            [InlineKeyboardButton(
+                "💰 تغییر قیمت",
+                callback_data="change_price"
+            )],
+            [InlineKeyboardButton(
+                "🗑️ حذف محصول",
+                callback_data="delete_product"
+            )],
+            [InlineKeyboardButton(
+                "🔙 برگشت",
+                callback_data="home"
+            )],
+        ])
+
+        await query.message.reply_text(
+            "⚙️ مدیریت فروشگاه\n\n"
+            "لطفاً یکی از گزینه‌ها را انتخاب کنید:",
+            reply_markup=keyboard,
+        )
+        return
+
+    # -------------------------
+    # افزودن محصول
+    # -------------------------
+    if query.data == "add_product":
+        if query.from_user.id != ADMIN_ID:
+            await query.answer(
+                "⛔ دسترسی ندارید.",
+                show_alert=True
+            )
+            return
+
+        context.user_data.clear()
         context.user_data["adding_product"] = True
 
-        await query.edit_message_text(
+        await query.message.reply_text(
             "➕ افزودن محصول\n\n"
             "لطفاً نام محصول را ارسال کن."
         )
+        return
 
-    elif query.data == "add_photo":
-        await query.edit_message_text(
+    # -------------------------
+    # افزودن عکس
+    # -------------------------
+    if query.data == "add_photo":
+        await query.message.reply_text(
             "🖼️ افزودن عکس\n\n"
             "ابتدا محصول را با گزینه «افزودن محصول» ایجاد کن."
         )
+        return
 
-    elif query.data == "change_price":
-        await query.edit_message_text(
+    # -------------------------
+    # تغییر قیمت
+    # -------------------------
+    if query.data == "change_price":
+        await query.message.reply_text(
             "💰 تغییر قیمت\n\n"
             "این قسمت را در مرحله بعد فعال می‌کنیم.",
             reply_markup=InlineKeyboardMarkup([
@@ -274,9 +331,13 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )]
             ]),
         )
+        return
 
-    elif query.data == "delete_product":
-        await query.edit_message_text(
+    # -------------------------
+    # حذف محصول
+    # -------------------------
+    if query.data == "delete_product":
+        await query.message.reply_text(
             "🗑️ حذف محصول\n\n"
             "این قسمت را در مرحله بعد فعال می‌کنیم.",
             reply_markup=InlineKeyboardMarkup([
@@ -286,10 +347,12 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )]
             ]),
         )
+        return
 
 
 async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    text = update.message.text.strip()
 
     # -------------------------
     # ثبت سفارش مشتری
@@ -298,25 +361,35 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         step = context.user_data.get("order_step")
 
+        # دریافت نام
         if step == "name":
-            customer_name = update.message.text.strip()
 
-            context.user_data["customer_name"] = customer_name
+            context.user_data["customer_name"] = text
             context.user_data["order_step"] = "phone"
 
             await update.message.reply_text(
-                f"✅ نام ثبت شد: {customer_name}\n\n"
-                "📱 حالا لطفاً شماره تماس خود را ارسال کنید."
+                f"✅ نام شما ثبت شد: {text}\n\n"
+                "📱 حالا لطفاً شماره تماس خود را ارسال کنید:"
             )
 
             return
 
+        # دریافت شماره
         if step == "phone":
-            customer_phone = update.message.text.strip()
 
-            product_name = context.user_data.get("order_product_name")
-            product_price = context.user_data.get("order_product_price")
-            customer_name = context.user_data.get("customer_name")
+            customer_phone = text
+
+            product_name = context.user_data.get(
+                "order_product_name"
+            )
+
+            product_price = context.user_data.get(
+                "order_product_price"
+            )
+
+            customer_name = context.user_data.get(
+                "customer_name"
+            )
 
             username = update.effective_user.username
 
@@ -325,11 +398,11 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 telegram_info = "ندارد"
 
-            # ارسال سفارش برای مدیر
+            # ارسال سفارش مستقیم برای مدیر
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
                 text=(
-                    "🔔 سفارش جدید دریافت شد!\n\n"
+                    "🔔 سفارش جدید دریافت شد! 🔔\n\n"
                     f"👗 محصول: {product_name}\n"
                     f"💰 قیمت: {product_price}\n\n"
                     f"👤 نام مشتری: {customer_name}\n"
@@ -341,7 +414,7 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await update.message.reply_text(
                 "✅ سفارش شما با موفقیت ثبت شد! 🎉\n\n"
-                "📦 سفارش شما برای فروشگاه ارسال شد.\n"
+                "📦 سفارش برای فروشگاه ارسال شد.\n"
                 "📞 به‌زودی با شما تماس گرفته می‌شود.\n\n"
                 "🌸 تشکر از اعتماد شما به Mohammadi Fashion 🌸"
             )
@@ -351,35 +424,35 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     # -------------------------
-    # بخش مدیریت فروشگاه
+    # مدیریت فروشگاه
     # -------------------------
     if user_id != ADMIN_ID:
         return
 
+    # نام محصول
     if context.user_data.get("adding_product"):
-        product_name = update.message.text.strip()
 
-        context.user_data["product_name"] = product_name
+        context.user_data["product_name"] = text
         context.user_data["adding_product"] = False
         context.user_data["adding_price"] = True
 
         await update.message.reply_text(
             f"✅ نام محصول ثبت شد:\n\n"
-            f"👗 {product_name}\n\n"
+            f"👗 {text}\n\n"
             "💰 حالا قیمت محصول را ارسال کن."
         )
 
         return
 
+    # قیمت محصول
     if context.user_data.get("adding_price"):
-        price = update.message.text.strip()
 
-        context.user_data["product_price"] = price
+        context.user_data["product_price"] = text
         context.user_data["adding_price"] = False
         context.user_data["adding_photo"] = True
 
         await update.message.reply_text(
-            f"💰 قیمت {price} ثبت شد.\n\n"
+            f"💰 قیمت {text} ثبت شد.\n\n"
             "🖼️ حالا عکس محصول را ارسال کن."
         )
 
@@ -391,6 +464,7 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if context.user_data.get("adding_photo"):
+
         photo = update.message.photo[-1]
         photo_id = photo.file_id
 
@@ -412,21 +486,26 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
 
         await update.message.reply_text(
-            "✅ محصول با موفقیت ذخیره شد!\n\n"
+            "✅ محصول با موفقیت ذخیره شد! 🎉\n\n"
             f"👗 {product_name}\n"
             f"💰 قیمت: {product_price}\n"
             "🖼️ عکس: ثبت شد\n\n"
-            "محصول اکنون در بخش «لباس‌های مجلسی» نمایش داده می‌شود."
+            "محصول اکنون در بخش لباس‌های مجلسی نمایش داده می‌شود."
         )
 
 
 def main():
+
     if not TOKEN or TOKEN == "توکن_جدید_خودت":
-        raise RuntimeError("توکن ربات وارد نشده است.")
+        raise RuntimeError(
+            "توکن ربات وارد نشده است."
+        )
 
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
+    app.add_handler(
+        CommandHandler("start", start)
+    )
 
     app.add_handler(
         CallbackQueryHandler(buttons)
@@ -452,4 +531,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()   
+    main()        
