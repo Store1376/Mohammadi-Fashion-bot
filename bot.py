@@ -1,4 +1,3 @@
-import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -45,40 +44,49 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "sarpatloni":
-        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="home")]]
+        keyboard = [
+            [InlineKeyboardButton("🔙 برگشت", callback_data="home")]
+        ]
         await query.edit_message_text(
             "👖 سرپطلونی\n\nمحصولات این بخش به‌زودی اضافه می‌شوند.",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
     elif query.data == "dokht":
-        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="home")]]
+        keyboard = [
+            [InlineKeyboardButton("🔙 برگشت", callback_data="home")]
+        ]
         await query.edit_message_text(
             "🧵 سفارش دوخت\n\nلطفاً مشخصات لباس مورد نظر خود را ارسال کنید.",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
     elif query.data == "order":
-        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="velvet")]]
+        keyboard = [
+            [InlineKeyboardButton("🔙 برگشت", callback_data="velvet")]
+        ]
         await query.edit_message_text(
             "🛒 ثبت سفارش\n\nلطفاً نام و شماره تماس خود را ارسال کنید.",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
     elif query.data == "contact":
-    keyboard = [
-        [InlineKeyboardButton("💬 پیام در تلگرام", url="https://t.me/Rohullah1375")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data="home")],
-    ]
+        keyboard = [
+            [InlineKeyboardButton(
+                "💬 پیام در تلگرام",
+                url="https://t.me/Rohullah1375"
+            )],
+            [InlineKeyboardButton("🔙 برگشت", callback_data="home")],
+        ]
 
-    await query.edit_message_text(
-        "📞 تماس با ما\n\n"
-        "📱 شماره تماس اول: 0775816499\n"
-        "📱 شماره تماس دوم: 0744763112\n"
-        "💬 تلگرام: @Rohullah1375\n\n"
-        "🌸 Mohammadi Fashion 🌸",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+        await query.edit_message_text(
+            "📞 تماس با ما\n\n"
+            "📱 شماره تماس اول: 0775816499\n"
+            "📱 شماره تماس دوم: 0744763112\n"
+            "💬 تلگرام: @Rohullah1375\n\n"
+            "🌸 Mohammadi Fashion 🌸",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
     elif query.data == "home":
         keyboard = [
@@ -88,7 +96,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📞 تماس با ما", callback_data="contact")],
         ]
         await query.edit_message_text(
-            "🌸 Mohammadi Fashion 🌸\n\nلطفاً گزینه مورد نظر را انتخاب کنید:",
+            "🌸 Mohammadi Fashion 🌸\n\n"
+            "لطفاً گزینه مورد نظر را انتخاب کنید:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
