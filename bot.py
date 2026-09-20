@@ -176,41 +176,98 @@ async def show_category(query, category):
 async def show_product(query, context, product_id):
     product = product_by_id(product_id)
     if not product:
-        await query.message.reply_text("❌ محصول پیدا نشد.", reply_markup=back_home())
+        await query.message.reply_text(
+            "❌ محصول پیدا نشد.",
+            reply_markup=back_home()
+        )
         return
 
-    photos = product.get("photos", [])
-    if not photos and product.get("photo"):
-        photos = [product["photo"]]
+    # پشتیبانی از محصولات قدیمی که فقط کلید photo دارند
+    photos = product.get("photos") or []
+    if isinstance(photos, str):
+        photos = [photos]
+
+    old_photo = product.get("photo")
+    if old_photo and old_photo not in photos:
+        photos.insert(0, old_photo)
+
+    # حذف مقادیر خالی
+    photos = [p for p in photos if p]
 
     text = (
-        f"✨ {product['name']} ✨\n\n"
-        f"💰 قیمت: {product['price']}\n"
-        f"🏷️ دسته: {'لباس مجلسی' if product.get('category', 'majlesi') == 'majlesi' else 'سرپطلونی'}"
+        f"✨ {product.get('name', 'بدون نام')} ✨\n\n"
+        f"💰 قیمت: {product.get('price', 'توافقی')}\n"
+        f"🏷️ دسته: "
+        f"{'لباس مجلسی' if product.get('category', 'majlesi') == 'majlesi' else 'سرپطلونی'}"
     )
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛒 افزودن به سبد خرید", callback_data=f"cart_add_{product_id}")],
-        [InlineKeyboardButton("🛍️ سفارش مستقیم", callback_data=f"order_{product_id}")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"category_{product.get('category', 'majlesi')}")],
+        [InlineKeyboardButton(
+            "🛒 افزودن به سبد خرید",
+            callback_data=f"cart_add_{product_id}"
+        )],
+        [InlineKeyboardButton(
+            "🛍️ سفارش مستقیم",
+            callback_data=f"order_{product_id}"
+        )],
+        [InlineKeyboardButton(
+            "🔙 برگشت",
+            callback_data=f"category_{product.get('category', 'majlesi')}"
+        )],
     ])
 
-    if len(photos) == 1:
-        await query.message.reply_photo(
-            photo=photos[0],
-            caption=text,
-            reply_markup=keyboard,
+    if not photos:
+        await query.message.reply_text(
+            text + "\n\n⚠️ برای این محصول هنوز عکسی ثبت نشده است.",
+            reply_markup=keyboard
         )
-    elif len(photos) > 1:
-        media = [InputMediaPhoto(media=p) for p in photos[:10]]
-        media[0].caption = text
+        return
+
+    # یک عکس: عکس + دکمه‌ها در همان پیام
+    if len(photos) == 1:
+        try:
+            await query.message.reply_photo(
+                photo=photos[0],
+                caption=text,
+                reply_markup=keyboard,
+            )
+            return
+        except Exception as e:
+            await query.message.reply_text(
+                text + "\n\n⚠️ عکس محصول قابل نمایش نیست.\n"
+                "مدیر باید عکس محصول را دوباره از قسمت «مدیریت عکس» ارسال کند.",
+                reply_markup=keyboard
+            )
+            return
+
+    # چند عکس: همه عکس‌ها را ارسال می‌کنیم و بعد دکمه‌ها را می‌فرستیم
+    try:
+        media = []
+        for i, photo in enumerate(photos[:10]):
+            item = InputMediaPhoto(media=photo)
+            if i == 0:
+                item.caption = text
+            media.append(item)
+
         await query.message.reply_media_group(media=media)
         await query.message.reply_text(
-            "لطفاً یکی از گزینه‌ها را انتخاب کنید:",
-            reply_markup=keyboard,
+            "🛍️ گزینه مورد نظر را انتخاب کنید:",
+            reply_markup=keyboard
         )
-    else:
-        await query.message.reply_text(text, reply_markup=keyboard)
+    except Exception:
+        # اگر یکی از file_idها خراب باشد، حداقل اولین عکس را امتحان می‌کنیم.
+        try:
+            await query.message.reply_photo(
+                photo=photos[0],
+                caption=text,
+                reply_markup=keyboard,
+            )
+        except Exception:
+            await query.message.reply_text(
+                text + "\n\n⚠️ عکس محصول قابل نمایش نیست.\n"
+                "لطفاً مدیر عکس محصول را دوباره ارسال کند.",
+                reply_markup=keyboard
+            )
 
 
 # =========================================================
@@ -1031,9 +1088,14 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if action == "replace":
                     p["photos"] = [photo_id]
                 else:
-                    p.setdefault("photos", [])
-                    p["photos"].append(photo_id)
-                # backward compatibility
+                    existing = p.get("photos") or []
+                    if isinstance(existing, str):
+                        existing = [existing]
+                    if photo_id not in existing:
+                        existing.append(photo_id)
+                    p["photos"] = existing
+
+                # برای سازگاری با نسخه‌های قبلی
                 p["photo"] = p["photos"][0]
                 save_products(products)
                 if action == "replace":
