@@ -25,7 +25,7 @@ from telegram.ext import (
 # بهتر است توکن را در متغیر محیطی BOT_TOKEN قرار بدهی.
 # اگر قرار است همین فایل را مستقیم اجرا کنی، توکن فعلی را می‌توانی
 # در BOT_TOKEN قرار بدهی.
-TOKEN = "8850373531:AAGJRJL7ufyIVFn6xC4K3m8cCtRvdV7MX4E"
+TOKEN = "8850373531:AAFwEab-0DV8QeuJ0AarqWnCunqyZqOdrgM"
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8276323231"))
 
 # پرداخت آنلاین:
