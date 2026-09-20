@@ -355,6 +355,16 @@ async def send_order_to_admin(update, context, order):
         ),
     )
 
+    for photo_id in order.get("custom_photos", []):
+        try:
+            await context.bot.send_photo(
+                chat_id=ADMIN_ID,
+                photo=photo_id,
+                caption=f"🖼️ عکس مدل لباس — سفارش #{order['id']}",
+            )
+        except Exception:
+            pass
+
 
 # =========================================================
 # تماس
@@ -454,7 +464,8 @@ async def view_order(query, order_id):
         f"📅 تاریخ: {order['created_at']}\n"
         f"📌 وضعیت: {order['status']}\n\n"
         f"🛍️ محصولات:\n{items}"
-        + (f"\n\n📝 توضیحات سفارش دوخت:\n{order.get('custom_description')}" if order.get("custom_description") else ""),
+        + (f"\n\n📝 توضیحات سفارش دوخت:\n{order.get('custom_description')}" if order.get("custom_description") else "")
+        + (f"\n🖼️ تعداد عکس مدل: {len(order.get('custom_photos', []))}" if order.get("custom_photos") else ""),
         reply_markup=keyboard,
     )
 
@@ -942,15 +953,21 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if step == "description":
             context.user_data["custom_description"] = text
             context.user_data["custom_step"] = "phone"
-            await update.message.reply_text("📱 شماره تماس خود را ارسال کن:")
+            await update.message.reply_text("📱 شماره تماس خود را ارسال کن:\n\nبعد از شماره، می‌توانی عکس مدل لباس را هم بفرستی.")
             return
 
         if step == "phone":
+            context.user_data["custom_phone"] = text
+            context.user_data["custom_step"] = "photo"
+            await update.message.reply_text("🖼️ اگر عکس مدل لباس را داری، همین حالا ارسال کن.\n\nاگر عکس نداری، بنویس «ندارم» تا سفارش ثبت شود.")
+            return
+
+        if step == "photo" and text.strip().lower() in ("ندارم", "ندارم.", "نداریم", "نه"):
             order = {
                 "id": next_id(load_orders()),
                 "user_id": user_id,
                 "customer_name": update.effective_user.full_name,
-                "phone": text,
+                "phone": context.user_data.get("custom_phone", ""),
                 "telegram": f"@{update.effective_user.username}" if update.effective_user.username else "ندارد",
                 "items": [{
                     "name": "🧵 سفارش دوخت",
@@ -958,6 +975,7 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "quantity": 1,
                 }],
                 "custom_description": context.user_data.get("custom_description", ""),
+                "custom_photos": [],
                 "status": "جدید",
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
@@ -1081,6 +1099,36 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # عکس‌های مدیر
 # =========================================================
 async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo_id = update.message.photo[-1].file_id
+
+    if context.user_data.get("custom_order") and context.user_data.get("custom_step") == "photo":
+        order = {
+            "id": next_id(load_orders()),
+            "user_id": update.effective_user.id,
+            "customer_name": update.effective_user.full_name,
+            "phone": context.user_data.get("custom_phone", ""),
+            "telegram": f"@{update.effective_user.username}" if update.effective_user.username else "ندارد",
+            "items": [{"name": "🧵 سفارش دوخت", "price": "توافقی", "quantity": 1}],
+            "custom_description": context.user_data.get("custom_description", ""),
+            "custom_photos": [photo_id],
+            "status": "جدید",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
+        orders = load_orders()
+        orders.append(order)
+        save_orders(orders)
+        await send_order_to_admin(update, context, order)
+        description = order.get("custom_description", "")
+        context.user_data.clear()
+        await update.message.reply_text(
+            "✅ سفارش دوخت ثبت شد!\n\n"
+            f"🧵 مدل/توضیحات:\n{description}\n\n"
+            "🖼️ عکس مدل هم دریافت شد و برای فروشگاه ارسال گردید.\n\n"
+            "📞 به‌زودی با شما تماس گرفته می‌شود.",
+            reply_markup=home_keyboard(),
+        )
+        return
+
     if update.effective_user.id != ADMIN_ID:
         return
 
