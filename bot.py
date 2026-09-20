@@ -346,6 +346,11 @@ async def send_order_to_admin(update, context, order):
             f"💬 تلگرام: {order['telegram']}\n\n"
             "🛍️ محصولات:\n"
             + "\n".join(cart_lines)
+            + (
+                f"\n\n🧵 مدل و توضیحات سفارش دوخت:\n{order.get('custom_description', '')}"
+                if order.get("custom_description")
+                else ""
+            )
             + f"\n\n📌 وضعیت: {order['status']}"
         ),
     )
@@ -961,8 +966,11 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_orders(orders)
             await send_order_to_admin(update, context, order)
             context.user_data.clear()
+            description = order.get("custom_description", "")
             await update.message.reply_text(
-                "✅ سفارش دوخت ثبت شد! به‌زودی با شما تماس گرفته می‌شود.",
+                "✅ سفارش دوخت ثبت شد!\n\n"
+                f"🧵 مدل/توضیحات ثبت‌شده:\n{description}\n\n"
+                "📞 به‌زودی با شما تماس گرفته می‌شود.",
                 reply_markup=home_keyboard(),
             )
             return
