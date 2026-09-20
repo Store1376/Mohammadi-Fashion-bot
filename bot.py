@@ -448,7 +448,8 @@ async def view_order(query, order_id):
         f"💬 تلگرام: {order['telegram']}\n"
         f"📅 تاریخ: {order['created_at']}\n"
         f"📌 وضعیت: {order['status']}\n\n"
-        f"🛍️ محصولات:\n{items}",
+        f"🛍️ محصولات:\n{items}"
+        + (f"\n\n📝 توضیحات سفارش دوخت:\n{order.get('custom_description')}" if order.get("custom_description") else ""),
         reply_markup=keyboard,
     )
 
