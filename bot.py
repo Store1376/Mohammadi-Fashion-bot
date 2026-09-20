@@ -1,4 +1,3 @@
-
 import json
 import os
 
@@ -275,6 +274,18 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 callback_data="delete_product"
             )],
             [InlineKeyboardButton(
+                "✏️ تغییر نام محصول",
+                callback_data="change_name"
+            )],
+            [InlineKeyboardButton(
+                "🖼️ تغییر عکس محصول",
+                callback_data="change_photo"
+            )],
+            [InlineKeyboardButton(
+                "📋 لیست محصولات",
+                callback_data="list_products"
+            )],
+            [InlineKeyboardButton(
                 "🔙 برگشت",
                 callback_data="home"
             )],
@@ -284,6 +295,127 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚙️ مدیریت فروشگاه\n\n"
             "لطفاً یکی از گزینه‌ها را انتخاب کنید:",
             reply_markup=keyboard,
+        )
+        return
+
+    # -------------------------
+    # لیست محصولات
+    # -------------------------
+    if query.data == "list_products":
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        products = load_products()
+        if not products:
+            text = "📋 هنوز محصولی ثبت نشده است."
+        else:
+            lines = ["📋 لیست محصولات\n"]
+            for i, p in enumerate(products, 1):
+                lines.append(
+                    f"{i}. 👗 {p['name']}\n"
+                    f"   💰 {p['price']}\n"
+                    f"   🆔 {p['id']}"
+                )
+            text = "\n\n".join(lines)
+
+        await query.message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 برگشت", callback_data="admin")]
+            ])
+        )
+        return
+
+    # -------------------------
+    # تغییر نام محصول
+    # -------------------------
+    if query.data == "change_name":
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        products = load_products()
+        keyboard = [
+            [InlineKeyboardButton(
+                f"✏️ {p['name']}",
+                callback_data=f"name_{p['id']}"
+            )]
+            for p in products
+        ]
+        keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin")])
+
+        await query.message.reply_text(
+            "✏️ محصول مورد نظر را انتخاب کن:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    if query.data.startswith("name_"):
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        product_id = query.data.replace("name_", "")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+        if product is None:
+            await query.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        context.user_data.clear()
+        context.user_data["changing_name"] = True
+        context.user_data["name_product_id"] = product_id
+
+        await query.message.reply_text(
+            f"✏️ نام فعلی: {product['name']}\n\n"
+            "نام جدید را ارسال کن:"
+        )
+        return
+
+    # -------------------------
+    # تغییر عکس محصول
+    # -------------------------
+    if query.data == "change_photo":
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        products = load_products()
+        keyboard = [
+            [InlineKeyboardButton(
+                f"🖼️ {p['name']}",
+                callback_data=f"photo_{p['id']}"
+            )]
+            for p in products
+        ]
+        keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin")])
+
+        await query.message.reply_text(
+            "🖼️ محصول مورد نظر را انتخاب کن:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    if query.data.startswith("photo_"):
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        product_id = query.data.replace("photo_", "")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+        if product is None:
+            await query.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        context.user_data.clear()
+        context.user_data["changing_photo"] = True
+        context.user_data["photo_product_id"] = product_id
+
+        await query.message.reply_text(
+            f"🖼️ محصول: {product['name']}\n\n"
+            "عکس جدید محصول را ارسال کن:"
         )
         return
 
@@ -321,15 +453,56 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # تغییر قیمت
     # -------------------------
     if query.data == "change_price":
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        products = load_products()
+        keyboard = [
+            [InlineKeyboardButton(
+                f"💰 {p['name']} — {p['price']}",
+                callback_data=f"price_{p['id']}"
+            )]
+            for p in products
+        ]
+        keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin")])
+
         await query.message.reply_text(
-            "💰 تغییر قیمت\n\n"
-            "این قسمت را در مرحله بعد فعال می‌کنیم.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(
-                    "🔙 برگشت",
-                    callback_data="admin"
-                )]
-            ]),
+            "💰 تغییر قیمت
+
+"
+            "محصول مورد نظر را انتخاب کن:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    # -------------------------
+    # انتخاب محصول برای تغییر قیمت
+    # -------------------------
+    if query.data.startswith("price_"):
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        product_id = query.data.replace("price_", "")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+
+        if product is None:
+            await query.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        context.user_data.clear()
+        context.user_data["changing_price"] = True
+        context.user_data["price_product_id"] = product_id
+
+        await query.message.reply_text(
+            f"💰 تغییر قیمت
+
+"
+            f"👗 محصول: {product['name']}\n"
+            f"💵 قیمت فعلی: {product['price']}\n\n"
+            "قیمت جدید را ارسال کن:"
         )
         return
 
@@ -337,15 +510,89 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # حذف محصول
     # -------------------------
     if query.data == "delete_product":
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        products = load_products()
+        keyboard = [
+            [InlineKeyboardButton(
+                f"🗑️ {p['name']} — {p['price']}",
+                callback_data=f"delete_{p['id']}"
+            )]
+            for p in products
+        ]
+        keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin")])
+
+        if not products:
+            await query.message.reply_text(
+                "🗑️ محصولی برای حذف وجود ندارد.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await query.message.reply_text(
+                "🗑️ حذف محصول
+
+"
+                "محصولی را که می‌خواهی حذف کنی انتخاب کن:",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        return
+
+    # -------------------------
+    # تأیید حذف محصول
+    # -------------------------
+    if query.data.startswith("delete_"):
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        product_id = query.data.replace("delete_", "")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+
+        if product is None:
+            await query.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ بله، حذف شود", callback_data=f"confirm_delete_{product_id}"),
+                InlineKeyboardButton("❌ لغو", callback_data="delete_product"),
+            ]
+        ])
+
         await query.message.reply_text(
-            "🗑️ حذف محصول\n\n"
-            "این قسمت را در مرحله بعد فعال می‌کنیم.",
+            f"⚠️ مطمئنی می‌خواهی این محصول حذف شود؟\n\n"
+            f"👗 {product['name']}\n"
+            f"💰 {product['price']}",
+            reply_markup=keyboard
+        )
+        return
+
+    # -------------------------
+    # تأیید نهایی حذف
+    # -------------------------
+    if query.data.startswith("confirm_delete_"):
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("⛔ دسترسی ندارید.", show_alert=True)
+            return
+
+        product_id = query.data.replace("confirm_delete_", "")
+        products = load_products()
+        new_products = [p for p in products if p["id"] != product_id]
+
+        if len(new_products) == len(products):
+            await query.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        save_products(new_products)
+        await query.message.reply_text(
+            "✅ محصول با موفقیت حذف شد.",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(
-                    "🔙 برگشت",
-                    callback_data="admin"
-                )]
-            ]),
+                [InlineKeyboardButton("⚙️ مدیریت فروشگاه", callback_data="admin")],
+                [InlineKeyboardButton("🏠 خانه", callback_data="home")],
+            ])
         )
         return
 
@@ -429,6 +676,57 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != ADMIN_ID:
         return
 
+    # تغییر نام محصول
+    if context.user_data.get("changing_name"):
+        product_id = context.user_data.get("name_product_id")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+
+        if product is None:
+            context.user_data.clear()
+            await update.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        product["name"] = text
+        save_products(products)
+        context.user_data.clear()
+
+        await update.message.reply_text(
+            "✅ نام محصول با موفقیت تغییر کرد!\n\n"
+            f"👗 نام جدید: {product['name']}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⚙️ مدیریت فروشگاه", callback_data="admin")],
+                [InlineKeyboardButton("🏠 خانه", callback_data="home")],
+            ])
+        )
+        return
+
+    # تغییر قیمت محصول
+    if context.user_data.get("changing_price"):
+        product_id = context.user_data.get("price_product_id")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+
+        if product is None:
+            context.user_data.clear()
+            await update.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        product["price"] = text
+        save_products(products)
+        context.user_data.clear()
+
+        await update.message.reply_text(
+            "✅ قیمت با موفقیت تغییر کرد!\n\n"
+            f"👗 محصول: {product['name']}\n"
+            f"💰 قیمت جدید: {product['price']}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⚙️ مدیریت فروشگاه", callback_data="admin")],
+                [InlineKeyboardButton("🏠 خانه", callback_data="home")],
+            ])
+        )
+        return
+
     # نام محصول
     if context.user_data.get("adding_product"):
 
@@ -461,6 +759,30 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
+        return
+
+    if context.user_data.get("changing_photo"):
+        product_id = context.user_data.get("photo_product_id")
+        products = load_products()
+        product = next((p for p in products if p["id"] == product_id), None)
+
+        if product is None:
+            context.user_data.clear()
+            await update.message.reply_text("❌ محصول پیدا نشد.")
+            return
+
+        photo_id = update.message.photo[-1].file_id
+        product["photo"] = photo_id
+        save_products(products)
+        context.user_data.clear()
+
+        await update.message.reply_text(
+            "✅ عکس محصول با موفقیت تغییر کرد! 🎉",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⚙️ مدیریت فروشگاه", callback_data="admin")],
+                [InlineKeyboardButton("🏠 خانه", callback_data="home")],
+            ])
+        )
         return
 
     if context.user_data.get("adding_photo"):
