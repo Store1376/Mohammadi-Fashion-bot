@@ -469,9 +469,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin")])
 
         await query.message.reply_text(
-            "💰 تغییر قیمت
-
-"
+            "💰 تغییر قیمت\n\n"
             "محصول مورد نظر را انتخاب کن:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -498,9 +496,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["price_product_id"] = product_id
 
         await query.message.reply_text(
-            f"💰 تغییر قیمت
-
-"
+            f"💰 تغییر قیمت\n\n"
             f"👗 محصول: {product['name']}\n"
             f"💵 قیمت فعلی: {product['price']}\n\n"
             "قیمت جدید را ارسال کن:"
@@ -532,9 +528,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.message.reply_text(
-                "🗑️ حذف محصول
-
-"
+                "🗑️ حذف محصول\n\n"
                 "محصولی را که می‌خواهی حذف کنی انتخاب کن:",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
