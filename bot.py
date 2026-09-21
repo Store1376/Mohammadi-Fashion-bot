@@ -1504,6 +1504,11 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 web_app = Flask(__name__)
 
 
+@web_app.get("/")
+def home_health():
+    return jsonify({"ok": True, "service": "Mohammadi Fashion bot"})
+
+
 @web_app.get("/health")
 def health():
     return jsonify({"ok": True, "service": "Mohammadi Fashion bot"})
