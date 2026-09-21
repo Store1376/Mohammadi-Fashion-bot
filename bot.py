@@ -34,8 +34,8 @@ except ImportError:
 #    regenerated in BotFather because it has been exposed.
 # =========================================================
 
-TOKEN = os.getenv("BOT_TOKEN", "").strip()
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+TOKEN = "8850373531:AAFwEab-0DV8QeuJ0AarqWnCunqyZqOdrgM"
+ADMIN_ID= "8276323231"
 
 # HesabPay
 HESABPAY_API_KEY = os.getenv("HESABPAY_API_KEY", "").strip()
