@@ -34,8 +34,8 @@ except ImportError:
 #    regenerated in BotFather because it has been exposed.
 # =========================================================
 
-TOKEN = "8850373531:AAHYa_Fdz4tLlZik8pL8uTBsaYHp8b80U-0"
-ADMIN_ID= "8276323231"
+TOKEN = os.getenv("BOT_TOKEN", "").strip()
+ADMIN_ID = os.getenv("ADMIN_ID", "").strip()
 
 # HesabPay
 HESABPAY_API_KEY = os.getenv("HESABPAY_API_KEY", "").strip()
@@ -53,7 +53,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip()
 
 # Public webhook server
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "0.0.0.0")
-WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "8080"))
+WEBHOOK_PORT = int(os.getenv("PORT", os.getenv("WEBHOOK_PORT", "8080")))
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -204,7 +204,7 @@ def get_product(product_id):
 # -------------------------
 def is_admin(user_id):
     try:
-        return int(user_id) == ADMIN_ID and ADMIN_ID != 0
+        return str(user_id) == str(ADMIN_ID) and str(ADMIN_ID) != "0"
     except Exception:
         return False
 
