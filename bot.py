@@ -34,7 +34,7 @@ except ImportError:
 #    regenerated in BotFather because it has been exposed.
 # =========================================================
 
-TOKEN = "8850373531:AAFwEab-0DV8QeuJ0AarqWnCunqyZqOdrgM"
+TOKEN = "8850373531:AAHYa_Fdz4tLlZik8pL8uTBsaYHp8b80U-0"
 ADMIN_ID= "8276323231"
 
 # HesabPay
