@@ -1,7 +1,9 @@
+
 import os
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -62,6 +64,8 @@ logger = logging.getLogger(
     "MohammadiFashion"
 )
 
+DATA_LOCK = threading.RLock()
+
 
 # ============================================================
 # FLASK / RENDER
@@ -121,31 +125,49 @@ def load_json(
 
     try:
 
-        if not file_path.exists():
+        with DATA_LOCK:
 
-            save_json(
-                file_path,
-                default,
+            if not file_path.exists():
+
+                save_json(
+                    file_path,
+                    default,
+                )
+
+                return default
+
+            content = file_path.read_text(
+                encoding="utf-8"
+            ).strip()
+
+            if not content:
+
+                return default
+
+            return json.loads(
+                content
             )
 
-            return default
+    except (
+        json.JSONDecodeError,
+        OSError,
+        TypeError,
+        ValueError,
+    ) as error:
 
-        content = file_path.read_text(
-            encoding="utf-8"
-        ).strip()
-
-        if not content:
-
-            return default
-
-        return json.loads(
-            content
+        logger.exception(
+            "Database read error for %s: %s",
+            file_path,
+            error,
         )
+
+        return default
 
     except Exception as error:
 
-        logger.error(
-            "Database read error: %s",
+        logger.exception(
+            "Unexpected database read error for %s: %s",
+            file_path,
             error,
         )
 
@@ -157,23 +179,44 @@ def save_json(
     data,
 ):
 
+    temp_path = file_path.with_suffix(
+        file_path.suffix + ".tmp"
+    )
+
     try:
 
-        file_path.write_text(
-            json.dumps(
-                data,
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        with DATA_LOCK:
+
+            temp_path.write_text(
+                json.dumps(
+                    data,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            temp_path.replace(
+                file_path
+            )
 
     except Exception as error:
 
-        logger.error(
-            "Database save error: %s",
+        logger.exception(
+            "Database save error for %s: %s",
+            file_path,
             error,
         )
+
+        try:
+
+            if temp_path.exists():
+
+                temp_path.unlink()
+
+        except Exception:
+
+            pass
 
 
 def get_products():
@@ -196,7 +239,9 @@ def get_orders():
 # HELPERS
 # ============================================================
 
-def is_admin(user_id):
+def is_admin(
+    user_id
+):
 
     if not ADMIN_ID:
 
@@ -207,11 +252,15 @@ def is_admin(user_id):
     )
 
 
-def get_product(product_id):
+def get_product(
+    product_id
+):
 
     for product in get_products():
 
-        if str(product.get("id")) == str(
+        if str(
+            product.get("id")
+        ) == str(
             product_id
         ):
 
@@ -235,7 +284,12 @@ def next_product_id():
         try:
 
             numbers.append(
-                int(item.get("id", 0))
+                int(
+                    item.get(
+                        "id",
+                        0,
+                    )
+                )
             )
 
         except Exception:
@@ -266,7 +320,12 @@ def next_order_id():
         try:
 
             numbers.append(
-                int(item.get("id", 0))
+                int(
+                    item.get(
+                        "id",
+                        0,
+                    )
+                )
             )
 
         except Exception:
@@ -291,6 +350,7 @@ def main_keyboard(
     buttons = [
 
         [
+
             InlineKeyboardButton(
                 "👗 محصولات",
                 callback_data="products",
@@ -300,9 +360,11 @@ def main_keyboard(
                 "🛒 سبد خرید",
                 callback_data="cart",
             ),
+
         ],
 
         [
+
             InlineKeyboardButton(
                 "📦 سفارش‌های من",
                 callback_data="my_orders",
@@ -312,9 +374,11 @@ def main_keyboard(
                 "🔎 جستجوی محصول",
                 callback_data="search",
             ),
+
         ],
 
         [
+
             InlineKeyboardButton(
                 "🧵 دوخت سفارشی",
                 callback_data="custom",
@@ -324,6 +388,7 @@ def main_keyboard(
                 "📞 تماس با ما",
                 callback_data="contact",
             ),
+
         ],
 
     ]
@@ -332,10 +397,12 @@ def main_keyboard(
 
         buttons.append(
             [
+
                 InlineKeyboardButton(
                     "⚙️ مدیریت فروشگاه",
                     callback_data="admin",
                 )
+
             ]
         )
 
@@ -348,12 +415,16 @@ def home_button():
 
     return InlineKeyboardMarkup(
         [
+
             [
+
                 InlineKeyboardButton(
                     "🏠 صفحه اصلی",
                     callback_data="home",
                 )
+
             ]
+
         ]
     )
 
@@ -485,21 +556,27 @@ async def show_products(
         keyboard.append(
 
             [
+
                 InlineKeyboardButton(
                     f"👗 {name} — {price} افغانی",
                     callback_data=f"product:{product.get('id')}",
                 )
+
             ]
+
         )
 
     keyboard.append(
 
         [
+
             InlineKeyboardButton(
                 "🏠 صفحه اصلی",
                 callback_data="home",
             )
+
         ]
+
     )
 
     await query.edit_message_text(
@@ -529,7 +606,9 @@ async def show_product(
     if not product:
 
         await query.edit_message_text(
+
             "❌ محصول پیدا نشد.",
+
             reply_markup=home_button(),
         )
 
@@ -574,13 +653,16 @@ async def show_product(
     keyboard = [
 
         [
+
             InlineKeyboardButton(
                 "🛒 افزودن به سبد",
                 callback_data=f"add:{product_id}",
             )
+
         ],
 
         [
+
             InlineKeyboardButton(
                 "⬅️ محصولات",
                 callback_data="products",
@@ -590,6 +672,7 @@ async def show_product(
                 "🏠 خانه",
                 callback_data="home",
             ),
+
         ],
 
     ]
@@ -692,29 +775,36 @@ async def show_cart(
     lines.append(
 
         f"\n💰 مجموع: {cart_total(context):g} افغانی"
+
     )
 
     keyboard = [
 
         [
+
             InlineKeyboardButton(
                 "📱 ثبت سفارش",
                 callback_data="checkout",
             )
+
         ],
 
         [
+
             InlineKeyboardButton(
                 "🗑 خالی کردن سبد",
                 callback_data="clear_cart",
             )
+
         ],
 
         [
+
             InlineKeyboardButton(
                 "🏠 صفحه اصلی",
                 callback_data="home",
             )
+
         ],
 
     ]
@@ -851,7 +941,6 @@ async def buttons(
         user_id,
     )
 
-
     # HOME
     if data == "home":
 
@@ -866,7 +955,6 @@ async def buttons(
 
         return
 
-
     # PRODUCTS
     if data == "products":
 
@@ -875,7 +963,6 @@ async def buttons(
         )
 
         return
-
 
     # PRODUCT
     if data.startswith(
@@ -894,7 +981,6 @@ async def buttons(
 
         return
 
-
     # ADD CART
     if data.startswith(
         "add:"
@@ -912,7 +998,9 @@ async def buttons(
         if not product:
 
             await query.edit_message_text(
+
                 "❌ محصول پیدا نشد.",
+
                 reply_markup=home_button(),
             )
 
@@ -962,32 +1050,38 @@ async def buttons(
                 [
 
                     [
+
                         InlineKeyboardButton(
                             "🛒 سبد خرید",
                             callback_data="cart",
                         )
+
                     ],
 
                     [
+
                         InlineKeyboardButton(
                             "👗 محصولات",
                             callback_data="products",
                         )
+
                     ],
 
                     [
+
                         InlineKeyboardButton(
                             "🏠 خانه",
                             callback_data="home",
                         )
+
                     ],
 
                 ]
+
             ),
         )
 
         return
-
 
     # CART
     if data == "cart":
@@ -998,7 +1092,6 @@ async def buttons(
         )
 
         return
-
 
     # CLEAR CART
     if data == "clear_cart":
@@ -1015,7 +1108,6 @@ async def buttons(
         )
 
         return
-
 
     # CHECKOUT
     if data == "checkout":
@@ -1047,7 +1139,6 @@ async def buttons(
         )
 
         return
-
 
     # MY ORDERS
     if data == "my_orders":
@@ -1102,7 +1193,6 @@ async def buttons(
 
         return
 
-
     # SEARCH
     if data == "search":
 
@@ -1119,14 +1209,13 @@ async def buttons(
 
         return
 
-
     # CUSTOM
     if data == "custom":
 
         context.user_data[
             "state"
         ] = "custom"
-        
+
         await query.edit_message_text(
 
             "🧵 دوخت سفارشی\n\n"
@@ -1137,7 +1226,6 @@ async def buttons(
         )
 
         return
-
 
     # CONTACT
     if data == "contact":
@@ -1152,7 +1240,6 @@ async def buttons(
         )
 
         return
-
 
     # ADMIN
     if data == "admin":
@@ -1170,38 +1257,48 @@ async def buttons(
         keyboard = [
 
             [
+
                 InlineKeyboardButton(
                     "📊 آمار",
                     callback_data="admin_stats",
                 )
+
             ],
 
             [
+
                 InlineKeyboardButton(
                     "📦 سفارش‌ها",
                     callback_data="admin_orders",
                 )
+
             ],
 
             [
+
                 InlineKeyboardButton(
                     "➕ افزودن محصول",
                     callback_data="admin_add",
                 )
+
             ],
 
             [
+
                 InlineKeyboardButton(
                     "🗑 حذف محصول",
                     callback_data="admin_delete",
                 )
+
             ],
 
             [
+
                 InlineKeyboardButton(
                     "🏠 صفحه اصلی",
                     callback_data="home",
                 )
+
             ],
 
         ]
@@ -1216,7 +1313,6 @@ async def buttons(
         )
 
         return
-
 
     # ADMIN STATS
     if data == "admin_stats":
@@ -1246,7 +1342,6 @@ async def buttons(
         )
 
         return
-
 
     # ADMIN ORDERS
     if data == "admin_orders":
@@ -1294,7 +1389,6 @@ async def buttons(
 
         return
 
-
     # ADMIN ADD
     if data == "admin_add":
 
@@ -1317,7 +1411,6 @@ async def buttons(
         )
 
         return
-
 
     # ADMIN DELETE
     if data == "admin_delete":
@@ -1367,7 +1460,6 @@ async def text_handler(
         user.id,
         text,
     )
-
 
     # PHONE
     if state == "phone":
@@ -1431,13 +1523,12 @@ async def text_handler(
 
             except Exception as error:
 
-                logger.error(
+                logger.exception(
                     "Admin notification error: %s",
                     error,
                 )
 
         return
-
 
     # SEARCH
     if state == "search":
@@ -1481,26 +1572,35 @@ async def text_handler(
             keyboard.append(
 
                 [
+
                     InlineKeyboardButton(
+
                         product.get(
                             "name",
                             "محصول"
                         ),
+
                         callback_data=(
                             f"product:{product.get('id')}"
                         ),
+
                     )
+
                 ]
+
             )
 
         keyboard.append(
 
             [
+
                 InlineKeyboardButton(
                     "🏠 خانه",
                     callback_data="home",
                 )
+
             ]
+
         )
 
         await update.message.reply_text(
@@ -1513,7 +1613,6 @@ async def text_handler(
         )
 
         return
-
 
     # CUSTOM SEWING
     if state == "custom":
@@ -1553,13 +1652,12 @@ async def text_handler(
 
             except Exception as error:
 
-                logger.error(
+                logger.exception(
                     "Custom sewing notification error: %s",
                     error,
                 )
 
         return
-
 
     # ADMIN ADD NAME
     if is_admin(
@@ -1583,7 +1681,6 @@ async def text_handler(
         )
 
         return
-
 
     # ADMIN PRICE
     if is_admin(
@@ -1624,7 +1721,6 @@ async def text_handler(
         )
 
         return
-
 
     # ADMIN STOCK
     if is_admin(
@@ -1689,7 +1785,6 @@ async def text_handler(
 
         return
 
-
     # ADMIN DELETE
     if is_admin(
         user.id
@@ -1743,7 +1838,6 @@ async def text_handler(
 
         return
 
-
     # NORMAL MESSAGE
     await update.message.reply_text(
 
@@ -1766,7 +1860,7 @@ async def error_handler(
     context,
 ):
 
-    logger.error(
+    logger.exception(
         "TELEGRAM ERROR: %s",
         context.error,
     )
@@ -1776,39 +1870,7 @@ async def error_handler(
 # MAIN
 # ============================================================
 
-def main():
-
-    # --------------------------------------------------------
-    # TOKEN CHECK
-    # --------------------------------------------------------
-
-    if not BOT_TOKEN:
-
-        raise RuntimeError(
-            "BOT_TOKEN is missing. "
-            "Add BOT_TOKEN in Render Environment Variables."
-        )
-
-    logger.info(
-        "BOT TOKEN loaded: True"
-    )
-
-
-    # --------------------------------------------------------
-    # RENDER WEB SERVER
-    # --------------------------------------------------------
-
-    web_thread = threading.Thread(
-        target=start_web_server,
-        daemon=True,
-    )
-
-    web_thread.start()
-
-
-    # --------------------------------------------------------
-    # TELEGRAM APPLICATION
-    # --------------------------------------------------------
+def build_application():
 
     app = (
         Application
@@ -1821,10 +1883,7 @@ def main():
         "Telegram application created."
     )
 
-
-    # --------------------------------------------------------
     # COMMANDS
-    # --------------------------------------------------------
 
     app.add_handler(
         CommandHandler(
@@ -1847,10 +1906,7 @@ def main():
         )
     )
 
-
-    # --------------------------------------------------------
     # BUTTONS
-    # --------------------------------------------------------
 
     app.add_handler(
         CallbackQueryHandler(
@@ -1858,53 +1914,150 @@ def main():
         )
     )
 
-
-    # --------------------------------------------------------
     # TEXT
-    # --------------------------------------------------------
 
     app.add_handler(
-
         MessageHandler(
-
             filters.TEXT
             & ~filters.COMMAND,
-
             text_handler,
-
         )
-
     )
 
-
-    # --------------------------------------------------------
     # ERROR
-    # --------------------------------------------------------
 
     app.add_error_handler(
         error_handler
     )
 
+    return app
 
-    # --------------------------------------------------------
-    # START POLLING
-    # --------------------------------------------------------
+
+def start_web_server_once():
+
+    web_thread = threading.Thread(
+        target=start_web_server,
+        name="flask-web",
+        daemon=True,
+    )
+
+    web_thread.start()
 
     logger.info(
-        "Mohammadi Fashion Bot is running..."
+        "Flask web server thread started."
     )
+
+
+def run_telegram_once():
+
+    app = None
+
+    try:
+
+        app = build_application()
+
+        logger.info(
+            "Starting Telegram polling..."
+        )
+
+        app.run_polling(
+            drop_pending_updates=True,
+            allowed_updates=Update.ALL_TYPES,
+            close_loop=False,
+        )
+
+        logger.warning(
+            "Telegram polling stopped normally."
+        )
+
+    finally:
+
+        logger.info(
+            "Telegram polling cycle ended."
+        )
+
+
+def main():
+
+    # TOKEN CHECK
+
+    if not BOT_TOKEN:
+
+        raise RuntimeError(
+            "BOT_TOKEN is missing. "
+            "Add BOT_TOKEN in Render Environment Variables."
+        )
 
     logger.info(
-        "Starting Telegram polling..."
+        "BOT TOKEN loaded: True"
     )
 
-    app.run_polling(
+    # RENDER WEB SERVER
 
-        drop_pending_updates=True,
+    start_web_server_once()
 
-        allowed_updates=Update.ALL_TYPES,
+    # TELEGRAM SUPERVISOR
 
-    )
+    restart_delay = 5
+    max_restart_delay = 60
+
+    while True:
+
+        try:
+
+            logger.info(
+                "Starting Telegram bot supervisor cycle..."
+            )
+
+            run_telegram_once()
+
+            logger.warning(
+                "Telegram polling returned. Restarting in %s seconds...",
+                restart_delay,
+            )
+
+            time.sleep(
+                restart_delay
+            )
+
+            restart_delay = 5
+
+        except KeyboardInterrupt:
+
+            logger.info(
+                "Bot stopped by keyboard interrupt."
+            )
+
+            break
+
+        except SystemExit:
+
+            logger.info(
+                "Bot received SystemExit."
+            )
+
+            break
+
+        except Exception as error:
+
+            logger.exception(
+                "FATAL TELEGRAM/POLLING ERROR: %s",
+                error,
+            )
+
+            logger.warning(
+                "Bot will automatically restart in %s seconds.",
+                restart_delay,
+            )
+
+            time.sleep(
+                restart_delay
+            )
+
+            restart_delay = min(
+                restart_delay * 2,
+                max_restart_delay,
+            )
 
 
 # ============================================================
@@ -1913,4 +2066,22 @@ def main():
 
 if __name__ == "__main__":
 
-    main()
+    try:
+
+        main()
+
+    except KeyboardInterrupt:
+
+        logger.info(
+            "Mohammadi Fashion Bot stopped."
+        )
+
+    except Exception as error:
+
+        logger.exception(
+            "UNHANDLED STARTUP ERROR: %s",
+            error,
+        )
+
+        raise
+```
