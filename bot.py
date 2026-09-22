@@ -66,17 +66,10 @@ OPENAI_MODEL = os.getenv(
     "gpt-5",
 ).strip()
 
-WEBHOOK_HOST = os.getenv(
-    "WEBHOOK_HOST",
-    "0.0.0.0",
-).strip()
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "0.0.0.0").strip()
 RENDER_URL = os.getenv("RENDER_URL", "https://mohammadi-fashion-bot.onrender.com").strip()
-
-# مهم برای Render
-WEBHOOK_PORT = int(
-    os.getenv("PORT", "10000")
-    WEBHOOK_PATH = "/telegram-webhook"
-)
+WEBHOOK_PORT = int(os.getenv("PORT", "10000"))
+WEBHOOK_PATH = "/telegram-webhook"
 
 DATA_DIR = Path(
     os.getenv("DATA_DIR", ".")
