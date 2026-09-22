@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import json
 import logging
@@ -11,6 +13,8 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
 )
 
 from telegram.ext import (
@@ -25,12 +29,7 @@ from telegram.ext import (
 
 # ============================================================
 # MOHAMMADI FASHION
-# Stable Telegram Store Bot
-# ============================================================
-
-
-# ============================================================
-# CONFIGURATION
+# Complete Telegram Store Bot
 # ============================================================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
@@ -39,11 +38,7 @@ ADMIN_ID = os.getenv("ADMIN_ID", "").strip()
 PORT = int(os.getenv("PORT", "10000"))
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
-
-DATA_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 PRODUCTS_FILE = DATA_DIR / "products.json"
 ORDERS_FILE = DATA_DIR / "orders.json"
@@ -58,9 +53,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
 
-logger = logging.getLogger(
-    "MohammadiFashion"
-)
+logger = logging.getLogger("MohammadiFashion")
 
 
 # ============================================================
@@ -72,34 +65,24 @@ web_app = Flask(__name__)
 
 @web_app.get("/")
 def home():
-
-    return jsonify(
-        {
-            "ok": True,
-            "service": "Mohammadi Fashion",
-            "status": "running",
-        }
-    )
+    return jsonify({
+        "ok": True,
+        "service": "Mohammadi Fashion",
+        "status": "running"
+    })
 
 
 @web_app.get("/health")
 def health():
-
-    return jsonify(
-        {
-            "ok": True,
-            "service": "Mohammadi Fashion",
-            "status": "healthy",
-        }
-    )
+    return jsonify({
+        "ok": True,
+        "service": "Mohammadi Fashion",
+        "status": "healthy"
+    })
 
 
 def start_web_server():
-
-    logger.info(
-        "Starting Render web server on port %s",
-        PORT,
-    )
+    logger.info("Starting web server on port %s", PORT)
 
     web_app.run(
         host="0.0.0.0",
@@ -111,23 +94,13 @@ def start_web_server():
 
 
 # ============================================================
-# JSON DATABASE
+# DATABASE
 # ============================================================
 
-def load_json(
-    file_path,
-    default,
-):
-
+def load_json(file_path, default):
     try:
-
         if not file_path.exists():
-
-            save_json(
-                file_path,
-                default,
-            )
-
+            save_json(file_path, default)
             return default
 
         content = file_path.read_text(
@@ -135,61 +108,36 @@ def load_json(
         ).strip()
 
         if not content:
-
             return default
 
-        return json.loads(
-            content
-        )
+        return json.loads(content)
 
     except Exception as error:
-
-        logger.error(
-            "Database read error: %s",
-            error,
-        )
-
+        logger.error("Database read error: %s", error)
         return default
 
 
-def save_json(
-    file_path,
-    data,
-):
-
+def save_json(file_path, data):
     try:
-
         file_path.write_text(
             json.dumps(
                 data,
                 ensure_ascii=False,
-                indent=2,
+                indent=2
             ),
-            encoding="utf-8",
+            encoding="utf-8"
         )
 
     except Exception as error:
-
-        logger.error(
-            "Database save error: %s",
-            error,
-        )
+        logger.error("Database save error: %s", error)
 
 
 def get_products():
-
-    return load_json(
-        PRODUCTS_FILE,
-        [],
-    )
+    return load_json(PRODUCTS_FILE, [])
 
 
 def get_orders():
-
-    return load_json(
-        ORDERS_FILE,
-        [],
-    )
+    return load_json(ORDERS_FILE, [])
 
 
 # ============================================================
@@ -197,175 +145,142 @@ def get_orders():
 # ============================================================
 
 def is_admin(user_id):
-
-    if not ADMIN_ID:
-
-        return False
-
-    return str(user_id) == str(
+    return bool(
         ADMIN_ID
+        and str(user_id) == str(ADMIN_ID)
     )
 
 
 def get_product(product_id):
-
     for product in get_products():
-
-        if str(product.get("id")) == str(
-            product_id
-        ):
-
+        if str(product.get("id")) == str(product_id):
             return product
 
     return None
 
 
 def next_product_id():
-
-    items = get_products()
-
-    if not items:
-
-        return "1"
+    products = get_products()
 
     numbers = []
 
-    for item in items:
-
+    for product in products:
         try:
-
             numbers.append(
-                int(item.get("id", 0))
+                int(product.get("id", 0))
             )
-
         except Exception:
-
             pass
 
-    if not numbers:
-
-        return "1"
-
-    return str(
-        max(numbers) + 1
-    )
+    return str(max(numbers, default=0) + 1)
 
 
 def next_order_id():
-
-    items = get_orders()
-
-    if not items:
-
-        return 1
+    orders = get_orders()
 
     numbers = []
 
-    for item in items:
-
+    for order in orders:
         try:
-
             numbers.append(
-                int(item.get("id", 0))
+                int(order.get("id", 0))
             )
-
         except Exception:
-
             pass
 
-    if not numbers:
+    return max(numbers, default=0) + 1
 
-        return 1
 
-    return max(numbers) + 1
+def money(value):
+    try:
+        number = float(value)
+
+        if number.is_integer():
+            return f"{int(number):,}"
+
+        return f"{number:,.2f}"
+
+    except Exception:
+        return str(value)
+
+
+def clear_state(context):
+    cart = context.user_data.get("cart", [])
+
+    context.user_data.clear()
+
+    context.user_data["cart"] = cart
 
 
 # ============================================================
 # MAIN KEYBOARD
 # ============================================================
 
-def main_keyboard(
-    user_id
-):
+def main_keyboard(user_id):
 
     buttons = [
 
         [
             InlineKeyboardButton(
-                "ًں‘— ظ…ط­طµظˆظ„ط§طھ",
-                callback_data="products",
+                "👗 محصولات",
+                callback_data="products"
             ),
-
             InlineKeyboardButton(
-                "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯",
-                callback_data="cart",
+                "🛒 سبد خرید",
+                callback_data="cart"
             ),
         ],
 
         [
             InlineKeyboardButton(
-                "ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§غŒ ظ…ظ†",
-                callback_data="my_orders",
+                "📦 سفارش‌های من",
+                callback_data="my_orders"
             ),
-
             InlineKeyboardButton(
-                "ًں”ژ ط¬ط³طھط¬ظˆغŒ ظ…ط­طµظˆظ„",
-                callback_data="search",
+                "🔎 جستجوی محصول",
+                callback_data="search"
             ),
         ],
 
         [
             InlineKeyboardButton(
-                "ًں§µ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ",
-                callback_data="custom",
+                "🧵 دوخت سفارشی",
+                callback_data="custom"
             ),
-
             InlineKeyboardButton(
-                "ًں“‍ طھظ…ط§ط³ ط¨ط§ ظ…ط§",
-                callback_data="contact",
+                "📞 تماس با ما",
+                callback_data="contact"
             ),
         ],
-
     ]
 
     if is_admin(user_id):
+        buttons.append([
+            InlineKeyboardButton(
+                "⚙️ مدیریت فروشگاه",
+                callback_data="admin"
+            )
+        ])
 
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    "âڑ™ï¸ڈ ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡",
-                    callback_data="admin",
-                )
-            ]
-        )
-
-    return InlineKeyboardMarkup(
-        buttons
-    )
+    return InlineKeyboardMarkup(buttons)
 
 
 def home_button():
-
-    return InlineKeyboardMarkup(
+    return InlineKeyboardMarkup([
         [
-            [
-                InlineKeyboardButton(
-                    "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
-                    callback_data="home",
-                )
-            ]
+            InlineKeyboardButton(
+                "🏠 صفحه اصلی",
+                callback_data="home"
+            )
         ]
-    )
+    ])
 
 
 # ============================================================
 # START
 # ============================================================
 
-async def start(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data.clear()
 
@@ -373,26 +288,21 @@ async def start(
 
     logger.info(
         "START from user %s",
-        user.id,
+        user.id
+    )
+
+    text = (
+        f"👋 سلام {user.first_name or 'دوست عزیز'}\n\n"
+        "🌸 به فروشگاه Mohammadi Fashion خوش آمدید.\n\n"
+        "👗 لباس‌های زنانه\n"
+        "🧵 دوخت سفارشی\n"
+        "🛒 ثبت سفارش آسان\n\n"
+        "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
     )
 
     await update.message.reply_text(
-
-        f"ًں‘‹ ط³ظ„ط§ظ… {user.first_name or 'ط¯ظˆط³طھ ط¹ط²غŒط²'}\n\n"
-
-        "ًںŒ¸ ط¨ظ‡ ظپط±ظˆط´ع¯ط§ظ‡\n"
-        "Mohammadi Fashion\n"
-        "ط®ظˆط´ ط¢ظ…ط¯غŒط¯.\n\n"
-
-        "ًں‘— ظ„ط¨ط§ط³â€Œظ‡ط§غŒ ط²ظ†ط§ظ†ظ‡\n"
-        "ًں§µ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ\n"
-        "ًں›’ ط«ط¨طھ ط³ظپط§ط±ط´ ط¢ط³ط§ظ†\n\n"
-
-        "غŒع©غŒ ط§ط² ع¯ط²غŒظ†ظ‡â€Œظ‡ط§غŒ ط²غŒط± ط±ط§ ط§ظ†طھط®ط§ط¨ ع©ظ†غŒط¯:",
-
-        reply_markup=main_keyboard(
-            user.id
-        ),
+        text,
+        reply_markup=main_keyboard(user.id)
     )
 
 
@@ -400,26 +310,22 @@ async def start(
 # HELP
 # ============================================================
 
-async def help_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def help_command(update, context):
+
+    text = (
+        "📖 راهنمای Mohammadi Fashion\n\n"
+        "/start — صفحه اصلی\n"
+        "/products — محصولات\n"
+        "/cart — سبد خرید\n"
+        "/orders — سفارش‌های من\n"
+        "/cancel — لغو عملیات\n"
+    )
 
     await update.message.reply_text(
-
-        "ًں“– ط±ط§ظ‡ظ†ظ…ط§غŒ Mohammadi Fashion\n\n"
-
-        "/start â€” طµظپط­ظ‡ ط§طµظ„غŒ\n"
-        "/products â€” ظ…ط­طµظˆظ„ط§طھ\n"
-        "/cart â€” ط³ط¨ط¯ ط®ط±غŒط¯\n"
-        "/orders â€” ط³ظپط§ط±ط´â€Œظ‡ط§غŒ ظ…ظ†\n"
-        "/cancel â€” ظ„ط؛ظˆ ط¹ظ…ظ„غŒط§طھ\n\n"
-
-        "ط¨ط±ط§غŒ ط§ط³طھظپط§ط¯ظ‡ ط¢ط³ط§ظ†â€Œطھط± ط§ط² ط¯ع©ظ…ظ‡â€Œظ‡ط§غŒ ظپط±ظˆط´ع¯ط§ظ‡ ط§ط³طھظپط§ط¯ظ‡ ع©ظ†غŒط¯.",
-
+        text,
         reply_markup=main_keyboard(
             update.effective_user.id
-        ),
+        )
     )
 
 
@@ -427,305 +333,255 @@ async def help_command(
 # CANCEL
 # ============================================================
 
-async def cancel(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def cancel(update, context):
 
     context.user_data.clear()
 
     await update.message.reply_text(
-
-        "â‌Œ ط¹ظ…ظ„غŒط§طھ ظ„ط؛ظˆ ط´ط¯.",
-
+        "❌ عملیات لغو شد.",
         reply_markup=main_keyboard(
             update.effective_user.id
-        ),
+        )
     )
 
 
 # ============================================================
-# SHOW PRODUCTS
+# PRODUCTS
 # ============================================================
 
-async def show_products(
-    query,
-):
+async def show_products(query):
 
-    items = get_products()
+    products = get_products()
 
-    if not items:
+    if not products:
 
         await query.edit_message_text(
-
-            "ًں‘— ظ…ط­طµظˆظ„ط§طھ ظپط±ظˆط´ع¯ط§ظ‡\n\n"
-
-            "ظپط¹ظ„ط§ظ‹ ظ…ط­طµظˆظ„غŒ ط«ط¨طھ ظ†ط´ط¯ظ‡ ط§ط³طھ.\n"
-            "ظ…ط¯غŒط±غŒطھ ظ…غŒâ€Œطھظˆط§ظ†ط¯ ط§ط² ظ¾ظ†ظ„ ظ…ط¯غŒط±غŒطھ ظ…ط­طµظˆظ„ ط§ط¶ط§ظپظ‡ ع©ظ†ط¯.",
-
-            reply_markup=home_button(),
+            "👗 محصولات فروشگاه\n\n"
+            "فعلاً محصولی ثبت نشده است.",
+            reply_markup=home_button()
         )
 
         return
 
     keyboard = []
 
-    for product in items[:50]:
+    for product in products[:50]:
 
-        name = product.get(
-            "name",
-            "ظ…ط­طµظˆظ„",
-        )
+        product_id = product.get("id")
+        name = product.get("name", "محصول")
+        price = product.get("price", 0)
 
-        price = product.get(
-            "price",
-            0,
-        )
-
-        keyboard.append(
-
-            [
-                InlineKeyboardButton(
-                    f"ًں‘— {name} â€” {price} ط§ظپط؛ط§ظ†غŒ",
-                    callback_data=f"product:{product.get('id')}",
-                )
-            ]
-        )
-
-    keyboard.append(
-
-        [
+        keyboard.append([
             InlineKeyboardButton(
-                "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
-                callback_data="home",
+                f"👗 {name} — {money(price)} افغانی",
+                callback_data=f"product:{product_id}"
             )
-        ]
-    )
+        ])
+
+    keyboard.append([
+        InlineKeyboardButton(
+            "🏠 صفحه اصلی",
+            callback_data="home"
+        )
+    ])
 
     await query.edit_message_text(
-
-        "ًں‘— ظ…ط­طµظˆظ„ط§طھ Mohammadi Fashion\n\n"
-        "غŒع© ظ…ط­طµظˆظ„ ط±ط§ ط§ظ†طھط®ط§ط¨ ع©ظ†غŒط¯:",
-
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
+        "👗 محصولات Mohammadi Fashion\n\n"
+        "یک محصول را انتخاب کنید:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
 # ============================================================
-# SHOW PRODUCT
+# PRODUCT DETAILS
 # ============================================================
 
-async def show_product(
-    query,
-    product_id,
-):
+async def show_product(query, product_id):
 
-    product = get_product(
-        product_id
-    )
+    product = get_product(product_id)
 
     if not product:
 
         await query.edit_message_text(
-            "â‌Œ ظ…ط­طµظˆظ„ ظ¾غŒط¯ط§ ظ†ط´ط¯.",
-            reply_markup=home_button(),
+            "❌ محصول پیدا نشد.",
+            reply_markup=home_button()
         )
 
         return
 
-    name = product.get(
-        "name",
-        "ظ…ط­طµظˆظ„",
-    )
-
-    price = product.get(
-        "price",
-        0,
-    )
-
-    stock = product.get(
-        "stock",
-        0,
-    )
-
-    description = product.get(
-        "description",
-        "",
-    )
+    name = product.get("name", "محصول")
+    price = product.get("price", 0)
+    stock = product.get("stock", 0)
+    description = product.get("description", "")
+    photo_id = product.get("photo_id")
 
     text = (
-
-        f"ًں‘— {name}\n\n"
-
-        f"ًں’° ظ‚غŒظ…طھ: {price} ط§ظپط؛ط§ظ†غŒ\n"
-
-        f"ًں“¦ ظ…ظˆط¬ظˆط¯غŒ: {stock}\n\n"
-
+        f"👗 {name}\n\n"
+        f"💰 قیمت: {money(price)} افغانی\n"
+        f"📦 موجودی: {stock}\n"
     )
 
     if description:
+        text += f"\n📝 توضیحات:\n{description}\n"
 
-        text += (
-            f"ًں“‌ {description}\n\n"
+    keyboard = []
+
+    if int(stock or 0) > 0:
+        keyboard.append([
+            InlineKeyboardButton(
+                "🛒 افزودن به سبد خرید",
+                callback_data=f"add:{product_id}"
+            )
+        ])
+
+    keyboard.extend([
+        [
+            InlineKeyboardButton(
+                "⬅️ محصولات",
+                callback_data="products"
+            ),
+            InlineKeyboardButton(
+                "🏠 خانه",
+                callback_data="home"
+            )
+        ]
+    ])
+
+    markup = InlineKeyboardMarkup(keyboard)
+
+    try:
+
+        if photo_id:
+
+            await query.message.delete()
+
+            await query.message.chat.send_photo(
+                photo=photo_id,
+                caption=text,
+                reply_markup=markup
+            )
+
+        else:
+
+            await query.edit_message_text(
+                text,
+                reply_markup=markup
+            )
+
+    except Exception as error:
+
+        logger.error(
+            "Product display error: %s",
+            error
         )
 
-    keyboard = [
-
-        [
-            InlineKeyboardButton(
-                "ًں›’ ط§ظپط²ظˆط¯ظ† ط¨ظ‡ ط³ط¨ط¯",
-                callback_data=f"add:{product_id}",
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=markup
             )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "â¬…ï¸ڈ ظ…ط­طµظˆظ„ط§طھ",
-                callback_data="products",
-            ),
-
-            InlineKeyboardButton(
-                "ًںڈ  ط®ط§ظ†ظ‡",
-                callback_data="home",
-            ),
-        ],
-
-    ]
-
-    await query.edit_message_text(
-
-        text,
-
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
-    )
+        except Exception:
+            pass
 
 
 # ============================================================
 # CART
 # ============================================================
 
-def get_cart(
-    context
-):
-
+def get_cart(context):
     return context.user_data.setdefault(
         "cart",
-        [],
+        []
     )
 
 
-def cart_total(
-    context
-):
+def cart_total(context):
 
     total = 0
 
-    for product_id in get_cart(
-        context
-    ):
+    for product_id in get_cart(context):
 
-        product = get_product(
-            product_id
-        )
+        product = get_product(product_id)
 
-        if product:
+        if not product:
+            continue
 
-            try:
-
-                total += float(
-                    product.get(
-                        "price",
-                        0,
-                    )
-                )
-
-            except Exception:
-
-                pass
+        try:
+            total += float(
+                product.get("price", 0)
+            )
+        except Exception:
+            pass
 
     return total
 
 
-async def show_cart(
-    query,
-    context,
-):
+async def show_cart(query, context):
 
-    cart = get_cart(
-        context
-    )
+    cart = get_cart(context)
 
     if not cart:
 
         await query.edit_message_text(
-
-            "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯ ط´ظ…ط§ ط®ط§ظ„غŒ ط§ط³طھ.",
-
-            reply_markup=home_button(),
+            "🛒 سبد خرید شما خالی است.",
+            reply_markup=home_button()
         )
 
         return
 
     lines = [
-        "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯ ط´ظ…ط§\n"
+        "🛒 سبد خرید شما\n"
     ]
 
     for product_id in cart:
 
-        product = get_product(
-            product_id
-        )
+        product = get_product(product_id)
 
         if product:
 
             lines.append(
-
-                f"â€¢ {product.get('name')}\n"
-                f"  {product.get('price')} ط§ظپط؛ط§ظ†غŒ"
-
+                f"• {product.get('name')}\n"
+                f"  💰 {money(product.get('price', 0))} افغانی"
             )
 
     lines.append(
-
-        f"\nًں’° ظ…ط¬ظ…ظˆط¹: {cart_total(context):g} ط§ظپط؛ط§ظ†غŒ"
+        f"\n💰 مجموع: {money(cart_total(context))} افغانی"
     )
 
     keyboard = [
 
         [
             InlineKeyboardButton(
-                "ًں“± ط«ط¨طھ ط³ظپط§ط±ط´",
-                callback_data="checkout",
+                "📱 ثبت سفارش",
+                callback_data="checkout"
             )
         ],
 
         [
             InlineKeyboardButton(
-                "ًں—‘ ط®ط§ظ„غŒ ع©ط±ط¯ظ† ط³ط¨ط¯",
-                callback_data="clear_cart",
+                "🗑️ خالی کردن سبد",
+                callback_data="clear_cart"
             )
         ],
 
         [
             InlineKeyboardButton(
-                "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
-                callback_data="home",
+                "👗 محصولات",
+                callback_data="products"
             )
         ],
 
+        [
+            InlineKeyboardButton(
+                "🏠 صفحه اصلی",
+                callback_data="home"
+            )
+        ],
     ]
 
     await query.edit_message_text(
-
         "\n".join(lines),
-
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
-        ),
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -733,61 +589,39 @@ async def show_cart(
 # CREATE ORDER
 # ============================================================
 
-def create_order(
-    user,
-    context,
-    phone,
-):
+def create_order(user, context, phone):
 
-    cart = get_cart(
-        context
-    )
+    cart = get_cart(context)
 
     if not cart:
-
         return None
 
     items = []
-
     total = 0
 
     for product_id in cart:
 
-        product = get_product(
-            product_id
-        )
+        product = get_product(product_id)
 
         if not product:
-
             continue
 
         try:
-
             price = float(
-                product.get(
-                    "price",
-                    0,
-                )
+                product.get("price", 0)
             )
-
         except Exception:
-
             price = 0
 
-        items.append(
-
-            {
-                "product_id": product.get("id"),
-                "name": product.get("name"),
-                "price": price,
-            }
-
-        )
+        items.append({
+            "product_id": product.get("id"),
+            "name": product.get("name"),
+            "price": price
+        })
 
         total += price
 
     if not items:
-
         return None
 
     order = {
@@ -806,1111 +640,317 @@ def create_order(
 
         "total": total,
 
-        "status": "ط¬ط¯غŒط¯",
+        "status": "جدید",
 
         "created_at": datetime.now().isoformat(),
 
     }
 
-    data = get_orders()
+    orders = get_orders()
 
-    data.append(
-        order
-    )
+    orders.append(order)
 
     save_json(
         ORDERS_FILE,
-        data,
+        orders
     )
-
-    context.user_data.clear()
 
     return order
 
 
 # ============================================================
-# BUTTON HANDLER
+# CHECKOUT
 # ============================================================
 
-async def buttons(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def checkout(query, context):
 
-    query = update.callback_query
+    if not get_cart(context):
 
-    await query.answer()
+        await query.edit_message_text(
+            "🛒 سبد خرید شما خالی است.",
+            reply_markup=home_button()
+        )
 
-    user_id = query.from_user.id
+        return
 
-    data = query.data
+    context.user_data["state"] = "phone"
 
-    logger.info(
-        "BUTTON %s from %s",
-        data,
-        user_id,
+    await query.edit_message_text(
+        "📱 لطفاً شماره تماس خود را ارسال کنید.\n\n"
+        "مثال:\n"
+        "0700000000",
+        reply_markup=home_button()
     )
 
 
-    # HOME
-    if data == "home":
+# ============================================================
+# SEARCH
+# ============================================================
 
-        await query.edit_message_text(
+async def search_products(query, context):
 
-            "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ Mohammadi Fashion",
+    context.user_data["state"] = "search"
 
+    await query.edit_message_text(
+        "🔎 نام محصول مورد نظر را بنویسید:",
+        reply_markup=home_button()
+    )
+
+
+async def perform_search(update, context, text):
+
+    results = []
+
+    keyword = text.lower().strip()
+
+    for product in get_products():
+
+        name = str(
+            product.get("name", "")
+        ).lower()
+
+        description = str(
+            product.get("description", "")
+        ).lower()
+
+        if keyword in name or keyword in description:
+            results.append(product)
+
+    if not results:
+
+        await update.message.reply_text(
+            "❌ محصولی با این نام پیدا نشد.",
             reply_markup=main_keyboard(
-                user_id
-            ),
-        )
-
-        return
-
-
-    # PRODUCTS
-    if data == "products":
-
-        await show_products(
-            query
-        )
-
-        return
-
-
-    # PRODUCT
-    if data.startswith(
-        "product:"
-    ):
-
-        product_id = data.split(
-            ":",
-            1
-        )[1]
-
-        await show_product(
-            query,
-            product_id,
-        )
-
-        return
-
-
-    # ADD CART
-    if data.startswith(
-        "add:"
-    ):
-
-        product_id = data.split(
-            ":",
-            1
-        )[1]
-
-        product = get_product(
-            product_id
-        )
-
-        if not product:
-
-            await query.edit_message_text(
-                "â‌Œ ظ…ط­طµظˆظ„ ظ¾غŒط¯ط§ ظ†ط´ط¯.",
-                reply_markup=home_button(),
+                update.effective_user.id
             )
+        )
 
-            return
+        context.user_data.pop("state", None)
 
-        try:
+        return
 
-            stock = int(
-                product.get(
-                    "stock",
-                    0,
-                )
+    keyboard = []
+
+    for product in results[:30]:
+
+        keyboard.append([
+            InlineKeyboardButton(
+                f"👗 {product.get('name')} — "
+                f"{money(product.get('price', 0))} افغانی",
+                callback_data=f"product:{product.get('id')}"
             )
+        ])
 
-        except Exception:
-
-            stock = 0
-
-        if stock <= 0:
-
-            await query.edit_message_text(
-
-                "â‌Œ ط§غŒظ† ظ…ط­طµظˆظ„ ظپط¹ظ„ط§ظ‹ ظ…ظˆط¬ظˆط¯ ظ†غŒط³طھ.",
-
-                reply_markup=home_button(),
-            )
-
-            return
-
-        cart = get_cart(
-            context
+    keyboard.append([
+        InlineKeyboardButton(
+            "🏠 صفحه اصلی",
+            callback_data="home"
         )
+    ])
 
-        if product_id not in cart:
+    await update.message.reply_text(
+        "🔎 نتایج جستجو:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-            cart.append(
-                product_id
-            )
-
-        await query.edit_message_text(
-
-            f"âœ… {product.get('name')}\n"
-            "ط¨ظ‡ ط³ط¨ط¯ ط®ط±غŒط¯ ط§ط¶ط§ظپظ‡ ط´ط¯.",
-
-            reply_markup=InlineKeyboardMarkup(
-
-                [
-
-                    [
-                        InlineKeyboardButton(
-                            "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯",
-                            callback_data="cart",
-                        )
-                    ],
-
-                    [
-                        InlineKeyboardButton(
-                            "ًں‘— ظ…ط­طµظˆظ„ط§طھ",
-                            callback_data="products",
-                        )
-                    ],
-
-                    [
-                        InlineKeyboardButton(
-                            "ًںڈ  ط®ط§ظ†ظ‡",
-                            callback_data="home",
-                        )
-                    ],
-
-                ]
-            ),
-        )
-
-        return
-
-
-    # CART
-    if data == "cart":
-
-        await show_cart(
-            query,
-            context,
-        )
-
-        return
-
-
-    # CLEAR CART
-    if data == "clear_cart":
-
-        context.user_data[
-            "cart"
-        ] = []
-
-        await query.edit_message_text(
-
-            "ًں—‘ ط³ط¨ط¯ ط®ط±غŒط¯ ط®ط§ظ„غŒ ط´ط¯.",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # CHECKOUT
-    if data == "checkout":
-
-        if not get_cart(
-            context
-        ):
-
-            await query.edit_message_text(
-
-                "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯ ط®ط§ظ„غŒ ط§ط³طھ.",
-
-                reply_markup=home_button(),
-            )
-
-            return
-
-        context.user_data[
-            "state"
-        ] = "phone"
-
-        await query.edit_message_text(
-
-            "ًں“± ظ„ط·ظپط§ظ‹ ط´ظ…ط§ط±ظ‡ طھظ…ط§ط³ ط®ظˆط¯ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.\n\n"
-            "ظ…ط«ط§ظ„:\n"
-            "07XXXXXXXX",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # MY ORDERS
-    if data == "my_orders":
-
-        user_orders = [
-
-            order
-
-            for order in get_orders()
-
-            if str(
-                order.get(
-                    "user_id"
-                )
-            ) == str(
-                user_id
-            )
-
-        ]
-
-        if not user_orders:
-
-            await query.edit_message_text(
-
-                "ًں“¦ ط´ظ…ط§ ظ‡ظ†ظˆط² ط³ظپط§ط±ط´غŒ ط«ط¨طھ ظ†ع©ط±ط¯ظ‡â€Œط§غŒط¯.",
-
-                reply_markup=home_button(),
-            )
-
-            return
-
-        lines = [
-            "ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§غŒ ط´ظ…ط§\n"
-        ]
-
-        for order in user_orders[-10:]:
-
-            lines.append(
-
-                f"ًں§¾ ط³ظپط§ط±ط´ #{order.get('id')}\n"
-                f"ًں’° {order.get('total', 0):g} ط§ظپط؛ط§ظ†غŒ\n"
-                f"ًں“Œ ظˆط¶ط¹غŒطھ: {order.get('status')}\n"
-
-            )
-
-        await query.edit_message_text(
-
-            "\n".join(lines),
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # SEARCH
-    if data == "search":
-
-        context.user_data[
-            "state"
-        ] = "search"
-
-        await query.edit_message_text(
-
-            "ًں”ژ ظ†ط§ظ… ظ…ط­طµظˆظ„ ظ…ظˆط±ط¯ ظ†ط¸ط± ط±ط§ ط¨ظ†ظˆغŒط³غŒط¯.",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # CUSTOM
-    if data == "custom":
-
-        context.user_data[
-            "state"
-        ] = "custom"
-        
-        await query.edit_message_text(
-
-            "ًں§µ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ\n\n"
-            "ظ„ط·ظپط§ظ‹ طھظˆط¶غŒط­ط§طھ ظ„ط¨ط§ط³ ظ…ظˆط±ط¯ ظ†ط¸ط± ط®ظˆط¯ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.\n"
-            "ظ…ط«ظ„ط§ظ‹ ط±ظ†ع¯طŒ ظ…ط¯ظ„ ظˆ ط§ظ†ط¯ط§ط²ظ‡.",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # CONTACT
-    if data == "contact":
-
-        await query.edit_message_text(
-
-            "ًں“‍ طھظ…ط§ط³ ط¨ط§ ظ…ط§\n\n"
-            "Mohammadi Fashion\n\n"
-            "ط¨ط±ط§غŒ ط³ظپط§ط±ط´ ظˆ ظ…ط¹ظ„ظˆظ…ط§طھ ط¨غŒط´طھط± ط¨ط§ ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡ طھظ…ط§ط³ ط¨ع¯غŒط±غŒط¯.",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # ADMIN
-    if data == "admin":
-
-        if not is_admin(
-            user_id
-        ):
-
-            await query.edit_message_text(
-                "â‌Œ ط¯ط³طھط±ط³غŒ ط؛غŒط±ظ…ط¬ط§ط²."
-            )
-
-            return
-
-        keyboard = [
-
-            [
-                InlineKeyboardButton(
-                    "ًں“ٹ ط¢ظ…ط§ط±",
-                    callback_data="admin_stats",
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    "ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§",
-                    callback_data="admin_orders",
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    "â‍• ط§ظپط²ظˆط¯ظ† ظ…ط­طµظˆظ„",
-                    callback_data="admin_add",
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    "ًں—‘ ط­ط°ظپ ظ…ط­طµظˆظ„",
-                    callback_data="admin_delete",
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
-                    callback_data="home",
-                )
-            ],
-
-        ]
-
-        await query.edit_message_text(
-
-            "âڑ™ï¸ڈ ظ¾ظ†ظ„ ظ…ط¯غŒط±غŒطھ Mohammadi Fashion",
-
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            ),
-        )
-
-        return
-
-
-    # ADMIN STATS
-    if data == "admin_stats":
-
-        if not is_admin(
-            user_id
-        ):
-
-            return
-
-        product_count = len(
-            get_products()
-        )
-
-        order_count = len(
-            get_orders()
-        )
-
-        await query.edit_message_text(
-
-            "ًں“ٹ ط¢ظ…ط§ط± ظپط±ظˆط´ع¯ط§ظ‡\n\n"
-
-            f"ًں‘— ظ…ط­طµظˆظ„ط§طھ: {product_count}\n"
-            f"ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§: {order_count}",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # ADMIN ORDERS
-    if data == "admin_orders":
-
-        if not is_admin(
-            user_id
-        ):
-
-            return
-
-        items = get_orders()
-
-        if not items:
-
-            await query.edit_message_text(
-
-                "ًں“¦ ظ‡ظ†ظˆط² ط³ظپط§ط±ط´غŒ ظˆط¬ظˆط¯ ظ†ط¯ط§ط±ط¯.",
-
-                reply_markup=home_button(),
-            )
-
-            return
-
-        lines = [
-            "ًں“¦ ط¢ط®ط±غŒظ† ط³ظپط§ط±ط´â€Œظ‡ط§\n"
-        ]
-
-        for order in items[-20:]:
-
-            lines.append(
-
-                f"#{order.get('id')} | "
-                f"{order.get('name')} | "
-                f"{order.get('total', 0):g} ط§ظپط؛ط§ظ†غŒ | "
-                f"{order.get('status')}"
-
-            )
-
-        await query.edit_message_text(
-
-            "\n".join(lines),
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # ADMIN ADD
-    if data == "admin_add":
-
-        if not is_admin(
-            user_id
-        ):
-
-            return
-
-        context.user_data[
-            "state"
-        ] = "admin_name"
-
-        await query.edit_message_text(
-
-            "â‍• ط§ظپط²ظˆط¯ظ† ظ…ط­طµظˆظ„\n\n"
-            "ظ†ط§ظ… ظ…ط­طµظˆظ„ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.",
-
-            reply_markup=home_button(),
-        )
-
-        return
-
-
-    # ADMIN DELETE
-    if data == "admin_delete":
-
-        if not is_admin(
-            user_id
-        ):
-
-            return
-
-        context.user_data[
-            "state"
-        ] = "admin_delete"
-
-        await query.edit_message_text(
-
-            "ًں—‘ ط­ط°ظپ ظ…ط­طµظˆظ„\n\n"
-            "ID ظ…ط­طµظˆظ„ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.",
-
-            reply_markup=home_button(),
-        )
-
-        return
+    context.user_data.pop("state", None)
 
 
 # ============================================================
-# TEXT HANDLER
+# CUSTOM ORDER
 # ============================================================
 
-async def text_handler(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def custom_order(query, context):
+
+    context.user_data["state"] = "custom"
+
+    await query.edit_message_text(
+        "🧵 دوخت سفارشی\n\n"
+        "لطفاً توضیحات لباس مورد نظر خود را بنویسید.\n\n"
+        "مثلاً:\n"
+        "رنگ، مدل، سایز، نوع پارچه و تعداد.",
+        reply_markup=home_button()
+    )
+
+
+# ============================================================
+# CONTACT
+# ============================================================
+
+async def contact(query):
 
     text = (
-        update.message.text or ""
-    ).strip()
-
-    user = update.effective_user
-
-    state = context.user_data.get(
-        "state"
+        "📞 تماس با Mohammadi Fashion\n\n"
+        "برای سفارش و هماهنگی می‌توانید با ما تماس بگیرید.\n\n"
+        "📍 کابل، ده افغانان\n"
+        "👗 عمده‌فروشی لباس‌های زنانه\n"
+        "🧵 دوخت سفارشی"
     )
 
-    logger.info(
-        "MESSAGE from %s: %s",
-        user.id,
+    await query.edit_message_text(
         text,
+        reply_markup=home_button()
     )
 
 
-    # PHONE
-    if state == "phone":
+# ============================================================
+# MY ORDERS
+# ============================================================
 
-        order = create_order(
-            user,
-            context,
-            text,
+async def my_orders(query, user_id):
+
+    orders = [
+
+        order for order in get_orders()
+
+        if str(order.get("user_id")) == str(user_id)
+
+    ]
+
+    if not orders:
+
+        await query.edit_message_text(
+            "📦 شما هنوز سفارشی ثبت نکرده‌اید.",
+            reply_markup=home_button()
         )
 
-        if not order:
+        return
 
-            await update.message.reply_text(
+    lines = [
+        "📦 سفارش‌های شما\n"
+    ]
 
-                "â‌Œ ط³ظپط§ط±ط´ ط«ط¨طھ ظ†ط´ط¯.\n"
-                "ظ„ط·ظپط§ظ‹ ط¯ظˆط¨ط§ط±ظ‡ طھظ„ط§ط´ ع©ظ†غŒط¯.",
+    for order in orders[-10:]:
 
-                reply_markup=main_keyboard(
-                    user.id
-                ),
+        lines.append(
+            f"🧾 سفارش #{order.get('id')}\n"
+            f"💰 مبلغ: {money(order.get('total', 0))} افغانی\n"
+            f"📌 وضعیت: {order.get('status', 'جدید')}\n"
+        )
+
+    await query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=home_button()
+    )
+
+
+# ============================================================
+# ADMIN PANEL
+# ============================================================
+
+def admin_keyboard():
+
+    return InlineKeyboardMarkup([
+
+        [
+            InlineKeyboardButton(
+                "➕ افزودن محصول",
+                callback_data="admin_add"
             )
+        ],
 
-            return
-
-        await update.message.reply_text(
-
-            "âœ… ط³ظپط§ط±ط´ ط´ظ…ط§ ط«ط¨طھ ط´ط¯.\n\n"
-
-            f"ًں§¾ ط´ظ…ط§ط±ظ‡ ط³ظپط§ط±ط´: #{order['id']}\n"
-            f"ًں’° ظ…ط¨ظ„ط؛: {order['total']:g} ط§ظپط؛ط§ظ†غŒ\n"
-            f"ًں“± ط´ظ…ط§ط±ظ‡ طھظ…ط§ط³: {order['phone']}\n\n"
-
-            "ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡ ط¨ط§ ط´ظ…ط§ طھظ…ط§ط³ ط®ظˆط§ظ‡ط¯ ع¯ط±ظپطھ.",
-
-            reply_markup=main_keyboard(
-                user.id
+        [
+            InlineKeyboardButton(
+                "✏️ ویرایش محصول",
+                callback_data="admin_edit"
             ),
-        )
-
-        if ADMIN_ID:
-
-            try:
-
-                await context.bot.send_message(
-
-                    chat_id=int(
-                        ADMIN_ID
-                    ),
-
-                    text=(
-
-                        "ًں”” ط³ظپط§ط±ط´ ط¬ط¯غŒط¯\n\n"
-
-                        f"ًں§¾ ط³ظپط§ط±ط´: #{order['id']}\n"
-                        f"ًں‘¤ ظ…ط´طھط±غŒ: {order['name']}\n"
-                        f"ًں“± طھظ…ط§ط³: {order['phone']}\n"
-                        f"ًں’° ظ…ط¨ظ„ط؛: {order['total']:g} ط§ظپط؛ط§ظ†غŒ"
-
-                    ),
-                )
-
-            except Exception as error:
-
-                logger.error(
-                    "Admin notification error: %s",
-                    error,
-                )
-
-        return
-
-
-    # SEARCH
-    if state == "search":
-
-        context.user_data.clear()
-
-        found = []
-
-        for product in get_products():
-
-            name = str(
-                product.get(
-                    "name",
-                    ""
-                )
-            ).lower()
-
-            if text.lower() in name:
-
-                found.append(
-                    product
-                )
-
-        if not found:
-
-            await update.message.reply_text(
-
-                "â‌Œ ظ…ط­طµظˆظ„غŒ ط¨ط§ ط§غŒظ† ظ†ط§ظ… ظ¾غŒط¯ط§ ظ†ط´ط¯.",
-
-                reply_markup=main_keyboard(
-                    user.id
-                ),
-            )
-
-            return
-
-        keyboard = []
-
-        for product in found[:20]:
-
-            keyboard.append(
-
-                [
-                    InlineKeyboardButton(
-                        product.get(
-                            "name",
-                            "ظ…ط­طµظˆظ„"
-                        ),
-                        callback_data=(
-                            f"product:{product.get('id')}"
-                        ),
-                    )
-                ]
-            )
-
-        keyboard.append(
-
-            [
-                InlineKeyboardButton(
-                    "ًںڈ  ط®ط§ظ†ظ‡",
-                    callback_data="home",
-                )
-            ]
-        )
-
-        await update.message.reply_text(
-
-            "ًں”ژ ظ†طھط§غŒط¬ ط¬ط³طھط¬ظˆ:",
-
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
+            InlineKeyboardButton(
+                "🗑️ حذف محصول",
+                callback_data="admin_delete"
             ),
-        )
+        ],
 
-        return
-
-
-    # CUSTOM SEWING
-    if state == "custom":
-
-        context.user_data.clear()
-
-        await update.message.reply_text(
-
-            "ًں§µ طھظˆط¶غŒط­ط§طھ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ ط´ظ…ط§ ط¯ط±غŒط§ظپطھ ط´ط¯ âœ…\n\n"
-            "ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡ ط¨ط±ط±ط³غŒ ظ…غŒâ€Œع©ظ†ط¯ ظˆ ط¨ط§ ط´ظ…ط§ طھظ…ط§ط³ ظ…غŒâ€Œع¯غŒط±ط¯.",
-
-            reply_markup=main_keyboard(
-                user.id
-            ),
-        )
-
-        if ADMIN_ID:
-
-            try:
-
-                await context.bot.send_message(
-
-                    chat_id=int(
-                        ADMIN_ID
-                    ),
-
-                    text=(
-
-                        "ًں§µ ط¯ط±ط®ظˆط§ط³طھ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ\n\n"
-
-                        f"ًں‘¤ ظ…ط´طھط±غŒ: {user.full_name}\n"
-                        f"ًں†” User ID: {user.id}\n\n"
-                        f"ًں“‌ طھظˆط¶غŒط­ط§طھ:\n{text}"
-
-                    ),
-                )
-
-            except Exception as error:
-
-                logger.error(
-                    "Custom sewing notification error: %s",
-                    error,
-                )
-
-        return
-
-
-    # ADMIN ADD NAME
-    if is_admin(
-        user.id
-    ) and state == "admin_name":
-
-        context.user_data[
-            "new_product"
-        ] = {
-            "name": text
-        }
-
-        context.user_data[
-            "state"
-        ] = "admin_price"
-
-        await update.message.reply_text(
-
-            "ًں’° ظ‚غŒظ…طھ ظ…ط­طµظˆظ„ ط±ط§ ط¨ظ‡ ط§ظپط؛ط§ظ†غŒ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
-
-        )
-
-        return
-
-
-    # ADMIN PRICE
-    if is_admin(
-        user.id
-    ) and state == "admin_price":
-
-        try:
-
-            price = float(
-                text.replace(
-                    ",",
-                    "",
-                )
+        [
+            InlineKeyboardButton(
+                "📦 سفارش‌ها",
+                callback_data="admin_orders"
             )
+        ],
 
-        except ValueError:
-
-            await update.message.reply_text(
-                "â‌Œ ظ„ط·ظپط§ظ‹ ظپظ‚ط· ط¹ط¯ط¯ ظ‚غŒظ…طھ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
+        [
+            InlineKeyboardButton(
+                "📊 آمار فروشگاه",
+                callback_data="admin_stats"
             )
+        ],
 
-            return
+        [
+            InlineKeyboardButton(
+                "🏠 صفحه اصلی",
+                callback_data="home"
+            )
+        ],
 
-        context.user_data[
-            "new_product"
-        ][
-            "price"
-        ] = price
+    ])
 
-        context.user_data[
-            "state"
-        ] = "admin_stock"
 
-        await update.message.reply_text(
+async def admin_panel(query, user_id):
 
-            "ًں“¦ ظ…ظˆط¬ظˆط¯غŒ ظ…ط­طµظˆظ„ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
+    if not is_admin(user_id):
 
+        await query.edit_message_text(
+            "⛔ دسترسی غیرمجاز.",
+            reply_markup=home_button()
         )
 
         return
 
+    products = get_products()
+    orders = get_orders()
 
-    # ADMIN STOCK
-    if is_admin(
-        user.id
-    ) and state == "admin_stock":
+    text = (
+        "⚙️ پنل مدیریت Mohammadi Fashion\n\n"
+        f"👗 تعداد محصولات: {len(products)}\n"
+        f"📦 تعداد سفارش‌ها: {len(orders)}\n\n"
+        "یکی از گزینه‌ها را انتخاب کنید:"
+    )
 
-        try:
-
-            stock = int(
-                text
-            )
-
-        except ValueError:
-
-            await update.message.reply_text(
-                "â‌Œ ظ„ط·ظپط§ظ‹ ظپظ‚ط· ط¹ط¯ط¯ ظ…ظˆط¬ظˆط¯غŒ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
-            )
-
-            return
-
-        product = context.user_data[
-            "new_product"
-        ]
-
-        product[
-            "id"
-        ] = next_product_id()
-
-        product[
-            "stock"
-        ] = stock
-
-        product[
-            "description"
-        ] = ""
-
-        product[
-            "photo"
-        ] = ""
-
-        data = get_products()
-
-        data.append(
-            product
-        )
-
-        save_json(
-            PRODUCTS_FILE,
-            data,
-        )
-
-        context.user_data.clear()
-
-        await update.message.reply_text(
-
-            "âœ… ظ…ط­طµظˆظ„ ط¨ط§ ظ…ظˆظپظ‚غŒطھ ط§ط¶ط§ظپظ‡ ط´ط¯.",
-
-            reply_markup=main_keyboard(
-                user.id
-            ),
-        )
-
-        return
+    await query.edit_message_text(
+        text,
+        reply_markup=admin_keyboard()
+    )
 
 
-    # ADMIN DELETE
-    if is_admin(
-        user.id
-    ) and state == "admin_delete":
+# ============================================================
+# ADMIN ADD PRODUCT
+# ============================================================
 
-        data = get_products()
+async def admin_add_start(query, context):
 
-        new_data = [
+    context.user_data["state"] = "admin_add_name"
 
-            product
-
-            for product in data
-
-            if str(
-                product.get(
-                    "id"
-                )
-            ) != text
-
-        ]
-
-        if len(
-            new_data
-        ) == len(
-            data
-        ):
-
-            await update.message.reply_text(
-
-                "â‌Œ ظ…ط­طµظˆظ„غŒ ط¨ط§ ط§غŒظ† ID ظ¾غŒط¯ط§ ظ†ط´ط¯."
-
-            )
-
-            return
-
-        save_json(
-            PRODUCTS_FILE,
-            new_data,
-        )
-
-        context.user_data.clear()
-
-        await update.message.reply_text(
-
-            "âœ… ظ…ط­طµظˆظ„ ط­ط°ظپ ط´ط¯.",
-
-            reply_markup=main_keyboard(
-                user.id
-            ),
-        )
-
-        return
+    await query.edit_message_text(
+        "➕ افزودن محصول\n\n"
+        "نام محصول را ارسال کنید:",
+        reply_markup=home_button()
+    )
 
 
-    # NORMAL MESSAGE
+async def admin_add_name(update, context):
+
+    context.user_data["new_product"] = {
+        "name": update.message.text.strip()
+    }
+
+    context.user_data["state"] = "admin_add_price"
+
     await update.message.reply_text(
-
-        "ط³ظ„ط§ظ… ًںŒ¸\n\n"
-        "ظ¾غŒط§ظ… ط´ظ…ط§ ط¯ط±غŒط§ظپطھ ط´ط¯.\n"
-        "ط¨ط±ط§غŒ ط§ط³طھظپط§ط¯ظ‡ ط§ط² ظپط±ظˆط´ع¯ط§ظ‡ غŒع©غŒ ط§ط² ع¯ط²غŒظ†ظ‡â€Œظ‡ط§غŒ ط²غŒط± ط±ط§ ط§ظ†طھط®ط§ط¨ ع©ظ†غŒط¯.",
-
-        reply_markup=main_keyboard(
-            user.id
-        ),
+        "💰 قیمت محصول را به افغانی ارسال کنید:"
     )
 
 
-# ============================================================
-# ERROR HANDLER
-# ============================================================
+async def admin_add_price(update, context):
 
-async def error_handler(
-    update,
-    context,
-):
+    try:
+        price = float(
+            update.message.text.strip()
+        )
+    except Exception:
 
-    logger.error(
-        "TELEGRAM ERROR: %s",
-        context.error,
-    )
-
-
-# ============================================================
-# MAIN
-# ============================================================
-
-def main():
-
-    # --------------------------------------------------------
-    # TOKEN CHECK
-    # --------------------------------------------------------
-
-    if not BOT_TOKEN:
-
-        raise RuntimeError(
-            "BOT_TOKEN is missing. "
-            "Add BOT_TOKEN in Render Environment Variables."
+        await update.message.reply_text(
+            "❌ قیمت نامعتبر است. فقط عدد ارسال کنید."
         )
 
-    logger.info(
-        "BOT TOKEN loaded: True"
-    )
+        return
 
-
-    # --------------------------------------------------------
-    # RENDER WEB SERVER
-    # --------------------------------------------------------
-
-    web_thread = threading.Thread(
-        target=start_web_server,
-        daemon=True,
-    )
-
-    web_thread.start()
-
-
-    # --------------------------------------------------------
-    # TELEGRAM APPLICATION
-    # --------------------------------------------------------
-
-    app = (
-        Application
-        .builder()
-        .token(BOT_TOKEN)
-        .build()
-    )
-
-    logger.info(
-        "Telegram application created."
-    )
-
-
-    # --------------------------------------------------------
-    # COMMANDS
-    # --------------------------------------------------------
-
-    app.add_handler(
-        CommandHandler(
-            "start",
-            start,
-        )
-    )
-
-    app.add_handler(
-        CommandHandler(
-            "help",
-            help_command,
-        )
-    )
-
-    app.add_handler(
-        CommandHandler(
-            "cancel",
-            cancel,
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # BUTTONS
-    # --------------------------------------------------------
-
-    app.add_handler(
-        CallbackQueryHandler(
-            buttons,
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # TEXT
-    # --------------------------------------------------------
-
-    app.add_handler(
-
-        MessageHandler(
-
-            filters.TEXT
-            & ~filters.COMMAND,
-
-            text_handler,
-
-        )
-
-    )
-
-
-    # --------------------------------------------------------
-    # ERROR
-    # --------------------------------------------------------
-
-    app.add_error_handler(
-        error_handler
-    )
-
-
-    # --------------------------------------------------------
-    # START POLLING
-    # --------------------------------------------------------
-
-    logger.info(
-        "Mohammadi Fashion Bot is running..."
-    )
-
-    logger.info(
-        "Starting Telegram polling..."
-    )
-
-    app.run_polling(
-
-        drop_pending_updates=True,
-
-        allowed_updates=Update.ALL_TYPES,
-
-    )
-
-
-# ============================================================
-# RUN
-# ============================================================
-
-if __name__ == "__main__":
-
-    main()
+   
