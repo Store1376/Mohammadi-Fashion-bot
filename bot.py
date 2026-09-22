@@ -70,10 +70,12 @@ WEBHOOK_HOST = os.getenv(
     "WEBHOOK_HOST",
     "0.0.0.0",
 ).strip()
+RENDER_URL = os.getenv("RENDER_URL", "https://mohammadi-fashion-bot.onrender.com").strip()
 
 # مهم برای Render
 WEBHOOK_PORT = int(
     os.getenv("PORT", "10000")
+    WEBHOOK_PATH = "/telegram-webhook"
 )
 
 DATA_DIR = Path(
@@ -2709,7 +2711,6 @@ def main():
             start,
         )
     )
-
     app.add_handler(
         CallbackQueryHandler(
             buttons
@@ -2729,11 +2730,10 @@ def main():
             receive_message,
         )
     )
-
     print(
         "Mohammadi Fashion Smart Bot is running..."
     )
-
+    print(f"Webhook URL: {RENDER_URL}{WEBHOOK_PATH}")
     app.run_polling(
         drop_pending_updates=True,
         allowed_updates=Update.ALL_TYPES,
