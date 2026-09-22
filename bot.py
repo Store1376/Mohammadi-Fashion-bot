@@ -2697,7 +2697,8 @@ def main():
         .token(TOKEN)
         .build()
     )
-
+    print("Telegram application created.")
+    print("BOT TOKEN loaded:", bool(TOKEN))
     app.add_handler(
         CommandHandler(
             "start",
