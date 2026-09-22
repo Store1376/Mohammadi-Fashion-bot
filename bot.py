@@ -3,8 +3,8 @@ import os
 import json
 import logging
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from aiohttp import web
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 # ==========================================
-# Mohammadi Fashion Bot (نسخه اصلاح شده نهایی)
+# Mohammadi Fashion Bot (نسخه بدون نیاز به نصب کتابخانه)
 # ==========================================
 
 TOKEN = os.getenv("BOT_TOKEN", "8850373531:AAHYa_Fdz4tLlZik8pL8uTBsaYHp8b80U-0").strip()
@@ -227,15 +227,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 # ==========================================
-# سیستم وب‌سرور داخلی رندر برای بیدار ماندن
+# سیستم وب‌سرور داخلی (بدون احتیاج به کتابخانه خارجی)
 # ==========================================
-async def dummy_handler(request):
-    return web.Response(text="OK")
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, format, *args): return
 
 def run_server(port):
-    server = web.Application()
-    server.router.add_get('/', dummy_handler)
-    web.run_app(server, host="0.0.0.0", port=port, handle_signals=False)
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
 
 def main():
     if not TOKEN:
@@ -254,8 +258,4 @@ def main():
         app.run_webhook(
             listen="0.0.0.0",
             port=PORT,
-            secret_token="mohammadi_security_token_123",
-            webhook_url=f"{RENDER_EXTERNAL_URL}/webhook"
-        )
-    else:
-        logger.info("Starting with Polling (Local mode)...")
+        
