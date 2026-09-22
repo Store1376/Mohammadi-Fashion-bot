@@ -2,9 +2,8 @@
 import os
 import json
 import logging
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from aiohttp import web
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -17,13 +16,15 @@ from telegram.ext import (
 )
 
 # ==========================================
-# Mohammadi Fashion Bot (نسخه کاملا اصلاح شده)
+# Mohammadi Fashion Bot (نسخه نهایی تحت وب)
 # ==========================================
 
-# توکن ربات شما (در صورت تمایل می‌توانید در پنل رندر به صورت Env Variable ست کنید)
 TOKEN = os.getenv("BOT_TOKEN", "8850373531:AAHYa_Fdz4tLlZik8pL8uTBsaYHp8b80U-0").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0") or 0)
 PORT = int(os.getenv("PORT", "10000"))
+# آدرس دامنه شما در رندر (مثال: https://onrender.com)
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+
 DATA_FILE = Path(os.getenv("DATA_FILE", "data.json"))
 
 logging.basicConfig(
@@ -60,18 +61,19 @@ def load_data():
         return json.loads(json.dumps(DEFAULT_DATA, ensure_ascii=False))
 
 def save_data(data):
-    temp = DATA_FILE.with_suffix(".tmp")
-    with temp.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    temp.replace(DATA_FILE)
+    try:
+        temp = DATA_FILE.with_suffix(".tmp")
+        with temp.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        temp.replace(DATA_FILE)
+    except Exception:
+        logger.exception("Could not save data file")
 
 DATA = load_data()
-DATA_LOCK = threading.Lock()
 
 def is_admin(update: Update) -> bool:
     return bool(ADMIN_ID and update.effective_user and update.effective_user.id == ADMIN_ID)
 
-# دکمه‌های اصلی و ادمین با متون فارسی مستقیم
 def main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛍 محصولات", callback_data="products")],
@@ -95,15 +97,6 @@ def products_keyboard(data):
             price = product.get('price', 0)
             rows.append([InlineKeyboardButton(f"{name} — {price} افغانی", callback_data=f"product:{pid}")])
     rows.append([InlineKeyboardButton("🏠 برگشت", callback_data="home")])
-    return InlineKeyboardMarkup(rows)
-
-def admin_products_keyboard(data):
-    rows = []
-    for pid, product in data["products"].items():
-        name = product.get('name', 'محصول')
-        rows.append([InlineKeyboardButton(f"{name} ({pid})", callback_data=f"edit:{pid}")])
-    rows.append([InlineKeyboardButton("➕ افزودن", callback_data="admin_add")])
-    rows.append([InlineKeyboardButton("🏠 برگشت", callback_data="admin")])
     return InlineKeyboardMarkup(rows)
 
 def product_text(product):
@@ -134,30 +127,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "home":
-        await query.edit_message_text(
-            "🌸 <b>Mohammadi Fashion</b> 🌸\n\nبه فروشگاه خوش آمدید.", 
-            parse_mode="HTML", 
-            reply_markup=main_keyboard()
-        )
+        await query.edit_message_text("🌸 <b>Mohammadi Fashion</b> 🌸\n\nبه فروشگاه خوش آمدید.", parse_mode="HTML", reply_markup=main_keyboard())
         return
 
     if data == "products":
-        with DATA_LOCK: current = json.loads(json.dumps(DATA, ensure_ascii=False))
+        current = load_data()
         if not any(p.get("active", True) for p in current["products"].values()):
             await query.edit_message_text("فعلاً محصولی برای نمایش وجود ندارد.", reply_markup=main_keyboard())
             return
-        await query.edit_message_text(
-            "🛍 <b>محصولات فروشگاه</b>\n\nیک محصول را انتخاب کنید:", 
-            parse_mode="HTML", 
-            reply_markup=products_keyboard(current)
-        )
+        await query.edit_message_text("🛍 <b>محصولات فروشگاه</b>\n\nیک محصول را انتخاب کنید:", parse_mode="HTML", reply_markup=products_keyboard(current))
         return
 
     if data.startswith("product:"):
         pid = data.split(":", 1)[1]
-        with DATA_LOCK:
-            product = DATA["products"].get(pid)
-            product = dict(product) if product else None
+        current = load_data()
+        product = current["products"].get(pid)
         if not product or not product.get("active", True):
             await query.edit_message_text("این محصول دیگر موجود نیست.", reply_markup=main_keyboard())
             return
@@ -166,21 +150,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🛒 ثبت سفارش", callback_data=f"order:{pid}")],
             [InlineKeyboardButton("⬅️ محصولات", callback_data="products")]
         ])
-
-        if product.get("photo"):
-            try:
-                await query.message.reply_photo(photo=product["photo"], caption=product_text(product), parse_mode="HTML", reply_markup=buttons)
-                await query.delete_message()
-                return
-            except Exception:
-                logger.exception("Could not send photo")
-
         await query.edit_message_text(product_text(product), parse_mode="HTML", reply_markup=buttons)
         return
 
     if data.startswith("order:"):
         pid = data.split(":", 1)[1]
-        with DATA_LOCK: product = DATA["products"].get(pid)
+        current = load_data()
+        product = current["products"].get(pid)
         if not product: return
         context.user_data["order_product_id"] = pid
         context.user_data["state"] = "waiting_name"
@@ -189,8 +165,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "my_orders":
         uid = update.effective_user.id
-        with DATA_LOCK:
-            orders = [o for o in DATA["orders"] if o.get("user_id") == uid]
+        current = load_data()
+        orders = [o for o in current["orders"] if o.get("user_id") == uid]
         if not orders:
             text = "📦 هنوز سفارشی ثبت نکرده‌اید."
         else:
@@ -205,27 +181,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("☎️ <b>تماس با Mohammadi Fashion</b>\n\nبرای سفارش و هماهنگی، به همین ربات پیام بفرستید.\n📍 کابل، ده افغانان", parse_mode="HTML", reply_markup=main_keyboard())
         return
 
-    # پارت مربوط به پنل ادمین
-    if data == "admin":
-        if not is_admin(update): return
-        await query.edit_message_text("⚙️ <b>پنل مدیریت</b>", parse_mode="HTML", reply_markup=admin_keyboard())
-        return
-
-    if data == "admin_orders":
-        if not is_admin(update): return
-        with DATA_LOCK: orders = list(DATA["orders"][-20:])
-        if not orders:
-            text = "📦 هنوز سفارشی ثبت نشده است."
-        else:
-            lines = ["📦 <b>آخرین سفارش‌ها</b>\n"]
-            for o in orders:
-                lines.append(f"#{o['id']} | {o['product_name']} | {o['price']} افغانی\n👤 {o['customer_name']} | @{o.get('username', '-')} | {o['status']}")
-            text = "\n\n".join(lines)
-        await query.edit_message_text(text, parse_mode="HTML", reply_markup=admin_keyboard())
-        return
-
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message: return
+    if not update.message or not update.message.text: return
     state = context.user_data.get("state")
 
     if state == "waiting_name":
@@ -239,21 +196,62 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pid = context.user_data.get("order_product_id")
         name = context.user_data.get("customer_name", "-")
 
-        with DATA_LOCK:
-            product = DATA["products"].get(pid)
-            if not product:
-                await update.message.reply_text("محصول یافت نشد.")
-                return
-            order_id = len(DATA["orders"]) + 1
-            order = {
-                "id": order_id,
-                "user_id": update.effective_user.id,
-                "username": update.effective_user.username or "-",
-                "customer_name": name,
-                "phone": phone,
-                "product_id": pid,
-                "product_name": product["name"],
-                "price": product["price"],
-                "status": "در انتظار تماس",
-            }
-            DATA["orders"].append(order)
+        current = load_data()
+        product = current["products"].get(pid)
+        if not product:
+            await update.message.reply_text("محصول یافت نشد.")
+            return
+        order_id = len(current["orders"]) + 1
+        order = {
+            "id": order_id,
+            "user_id": update.effective_user.id,
+            "username": update.effective_user.username or "-",
+            "customer_name": name,
+            "phone": phone,
+            "product_id": pid,
+            "product_name": product["name"],
+            "price": product["price"],
+            "status": "در انتظار تماس",
+        }
+        current["orders"].append(order)
+        save_data(current)
+
+        context.user_data.clear()
+        success_text = f"✅ سفارش شما با موفقیت ثبت شد.\n\nشماره سفارش: <b>#{order_id}</b>\nمحصول: {order['product_name']}\nقیمت: {order['price']} افغانی\n\nبه‌زودی برای هماهنگی با شما تماس می‌گیریم."
+        await update.message.reply_text(success_text, parse_mode="HTML", reply_markup=main_keyboard())
+        
+        if ADMIN_ID:
+            try:
+                await context.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 سفارش جدید #{order_id}\nنام: {name}\nتلفن: {phone}\nمحصول: {order['product_name']}")
+            except Exception: pass
+        return
+
+def main():
+    if not TOKEN:
+        logger.error("No token found!")
+        return
+
+    # پیکربندی بات تلگرام
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("admin", admin_command))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
+    # اگر دامنه بیرونی در رندر تنظیم شده باشد، از وب‌هوک استفاده می‌شود، در غیر این صورت پولینگ
+    if RENDER_EXTERNAL_URL:
+        logger.info(u"Starting with Webhook on URL: " + RENDER_EXTERNAL_URL)
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            secret_token="mohammadi_security_token_123",
+            webhook_url=f"{RENDER_EXTERNAL_URL}/webhook"
+        )
+    else:
+        logger.info("Starting with Polling (Local mode)...")
+        # یک سرور موقت برای پورت رندر در حالت محلی تا خطا ندهد
+        async def dummy_handler(request): return web.Response(text="OK")
+        server = web.Application()
+        server.router.add_get('/', dummy_handler)
+        
+        def run_server():
