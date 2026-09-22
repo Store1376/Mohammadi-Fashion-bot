@@ -1,9 +1,18 @@
 import os
+import json
 import logging
 import threading
+from pathlib import Path
+from datetime import datetime
 
 from flask import Flask, jsonify
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -14,160 +23,818 @@ from telegram.ext import (
 )
 
 
-# =========================================================
-# SETTINGS
-# =========================================================
+# ============================================================
+# MOHAMMADI FASHION
+# Stable Telegram Store Bot
+# ============================================================
 
-TOKEN = os.getenv("BOT_TOKEN", "").strip()
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID = os.getenv("ADMIN_ID", "").strip()
 
 PORT = int(os.getenv("PORT", "10000"))
 
+DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 
-# =========================================================
-# LOGGING
-# =========================================================
-
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    level=logging.INFO,
+DATA_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
 )
 
-logger = logging.getLogger(__name__)
+PRODUCTS_FILE = DATA_DIR / "products.json"
+ORDERS_FILE = DATA_DIR / "orders.json"
 
 
-# =========================================================
-# RENDER HEALTH SERVER
-# =========================================================
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+
+logger = logging.getLogger(
+    "MohammadiFashion"
+)
+
+
+# ============================================================
+# FLASK / RENDER
+# ============================================================
 
 web_app = Flask(__name__)
 
 
 @web_app.get("/")
 def home():
-    return jsonify({
-        "ok": True,
-        "service": "Mohammadi Fashion Bot",
-        "status": "running",
-    })
+
+    return jsonify(
+        {
+            "ok": True,
+            "service": "Mohammadi Fashion",
+            "status": "running",
+        }
+    )
 
 
 @web_app.get("/health")
 def health():
-    return jsonify({
-        "ok": True,
-        "status": "healthy",
-    })
+
+    return jsonify(
+        {
+            "ok": True,
+            "service": "Mohammadi Fashion",
+            "status": "healthy",
+        }
+    )
 
 
-def run_web_server():
+def start_web_server():
+
+    logger.info(
+        "Starting Render web server on port %s",
+        PORT,
+    )
+
     web_app.run(
         host="0.0.0.0",
         port=PORT,
         debug=False,
         use_reloader=False,
+        threaded=True,
     )
 
 
-# =========================================================
-# KEYBOARDS
-# =========================================================
+# ============================================================
+# JSON DATABASE
+# ============================================================
 
-def main_keyboard(user_id):
+def load_json(
+    file_path,
+    default,
+):
+
+    try:
+
+        if not file_path.exists():
+
+            save_json(
+                file_path,
+                default,
+            )
+
+            return default
+
+        content = file_path.read_text(
+            encoding="utf-8"
+        ).strip()
+
+        if not content:
+
+            return default
+
+        return json.loads(
+            content
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Database read error: %s",
+            error,
+        )
+
+        return default
+
+
+def save_json(
+    file_path,
+    data,
+):
+
+    try:
+
+        file_path.write_text(
+            json.dumps(
+                data,
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    except Exception as error:
+
+        logger.error(
+            "Database save error: %s",
+            error,
+        )
+
+
+def get_products():
+
+    return load_json(
+        PRODUCTS_FILE,
+        [],
+    )
+
+
+def get_orders():
+
+    return load_json(
+        ORDERS_FILE,
+        [],
+    )
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def is_admin(user_id):
+
+    if not ADMIN_ID:
+
+        return False
+
+    return str(user_id) == str(
+        ADMIN_ID
+    )
+
+
+def get_product(product_id):
+
+    for product in get_products():
+
+        if str(product.get("id")) == str(
+            product_id
+        ):
+
+            return product
+
+    return None
+
+
+def next_product_id():
+
+    items = get_products()
+
+    if not items:
+
+        return "1"
+
+    numbers = []
+
+    for item in items:
+
+        try:
+
+            numbers.append(
+                int(item.get("id", 0))
+            )
+
+        except Exception:
+
+            pass
+
+    if not numbers:
+
+        return "1"
+
+    return str(
+        max(numbers) + 1
+    )
+
+
+def next_order_id():
+
+    items = get_orders()
+
+    if not items:
+
+        return 1
+
+    numbers = []
+
+    for item in items:
+
+        try:
+
+            numbers.append(
+                int(item.get("id", 0))
+            )
+
+        except Exception:
+
+            pass
+
+    if not numbers:
+
+        return 1
+
+    return max(numbers) + 1
+
+
+# ============================================================
+# MAIN KEYBOARD
+# ============================================================
+
+def main_keyboard(
+    user_id
+):
+
     buttons = [
+
         [
             InlineKeyboardButton(
                 "👗 محصولات",
-                callback_data="products"
+                callback_data="products",
             ),
+
             InlineKeyboardButton(
                 "🛒 سبد خرید",
-                callback_data="cart"
+                callback_data="cart",
             ),
         ],
+
         [
             InlineKeyboardButton(
                 "📦 سفارش‌های من",
-                callback_data="orders"
+                callback_data="my_orders",
             ),
+
             InlineKeyboardButton(
-                "📞 تماس با ما",
-                callback_data="contact"
+                "🔎 جستجوی محصول",
+                callback_data="search",
             ),
         ],
-    ]
 
-    if ADMIN_ID and str(user_id) == ADMIN_ID:
-        buttons.append([
-            InlineKeyboardButton(
-                "⚙️ مدیریت",
-                callback_data="admin"
-            )
-        ])
-
-    return InlineKeyboardMarkup(buttons)
-
-
-def home_keyboard(user_id):
-    return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "🏠 صفحه اصلی",
-                callback_data="home"
-            )
+                "🧵 دوخت سفارشی",
+                callback_data="custom",
+            ),
+
+            InlineKeyboardButton(
+                "📞 تماس با ما",
+                callback_data="contact",
+            ),
+        ],
+
+    ]
+
+    if is_admin(user_id):
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    "⚙️ مدیریت فروشگاه",
+                    callback_data="admin",
+                )
+            ]
+        )
+
+    return InlineKeyboardMarkup(
+        buttons
+    )
+
+
+def home_button():
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🏠 صفحه اصلی",
+                    callback_data="home",
+                )
+            ]
         ]
-    ])
+    )
 
 
-# =========================================================
-# /START
-# =========================================================
+# ============================================================
+# START
+# ============================================================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    context.user_data.clear()
 
     user = update.effective_user
 
     logger.info(
-        "START received from user %s",
-        user.id
+        "START from user %s",
+        user.id,
     )
 
     await update.message.reply_text(
+
         f"👋 سلام {user.first_name or 'دوست عزیز'}\n\n"
-        "🌸 به Mohammadi Fashion خوش آمدید.\n\n"
-        "فروشگاه لباس‌های زنانه\n"
-        "برای شروع یکی از گزینه‌های زیر را انتخاب کنید.",
-        reply_markup=main_keyboard(user.id),
+
+        "🌸 به فروشگاه\n"
+        "Mohammadi Fashion\n"
+        "خوش آمدید.\n\n"
+
+        "👗 لباس‌های زنانه\n"
+        "🧵 دوخت سفارشی\n"
+        "🛒 ثبت سفارش آسان\n\n"
+
+        "یکی از گزینه‌های زیر را انتخاب کنید:",
+
+        reply_markup=main_keyboard(
+            user.id
+        ),
     )
 
 
-# =========================================================
-# /HELP
-# =========================================================
+# ============================================================
+# HELP
+# ============================================================
 
 async def help_command(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE
+    context: ContextTypes.DEFAULT_TYPE,
 ):
 
     await update.message.reply_text(
-        "راهنمای Mohammadi Fashion\n\n"
-        "/start - شروع ربات\n"
-        "/help - راهنما\n\n"
-        "برای استفاده از فروشگاه از دکمه‌های زیر استفاده کنید.",
+
+        "📖 راهنمای Mohammadi Fashion\n\n"
+
+        "/start — صفحه اصلی\n"
+        "/products — محصولات\n"
+        "/cart — سبد خرید\n"
+        "/orders — سفارش‌های من\n"
+        "/cancel — لغو عملیات\n\n"
+
+        "برای استفاده آسان‌تر از دکمه‌های فروشگاه استفاده کنید.",
+
         reply_markup=main_keyboard(
             update.effective_user.id
         ),
     )
 
 
-# =========================================================
-# BUTTONS
-# =========================================================
+# ============================================================
+# CANCEL
+# ============================================================
 
-async def button_handler(
+async def cancel(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    context.user_data.clear()
+
+    await update.message.reply_text(
+
+        "❌ عملیات لغو شد.",
+
+        reply_markup=main_keyboard(
+            update.effective_user.id
+        ),
+    )
+
+
+# ============================================================
+# SHOW PRODUCTS
+# ============================================================
+
+async def show_products(
+    query,
+):
+
+    items = get_products()
+
+    if not items:
+
+        await query.edit_message_text(
+
+            "👗 محصولات فروشگاه\n\n"
+
+            "فعلاً محصولی ثبت نشده است.\n"
+            "مدیریت می‌تواند از پنل مدیریت محصول اضافه کند.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+    keyboard = []
+
+    for product in items[:50]:
+
+        name = product.get(
+            "name",
+            "محصول",
+        )
+
+        price = product.get(
+            "price",
+            0,
+        )
+
+        keyboard.append(
+
+            [
+                InlineKeyboardButton(
+                    f"👗 {name} — {price} افغانی",
+                    callback_data=f"product:{product.get('id')}",
+                )
+            ]
+        )
+
+    keyboard.append(
+
+        [
+            InlineKeyboardButton(
+                "🏠 صفحه اصلی",
+                callback_data="home",
+            )
+        ]
+    )
+
+    await query.edit_message_text(
+
+        "👗 محصولات Mohammadi Fashion\n\n"
+        "یک محصول را انتخاب کنید:",
+
+        reply_markup=InlineKeyboardMarkup(
+            keyboard
+        ),
+    )
+
+
+# ============================================================
+# SHOW PRODUCT
+# ============================================================
+
+async def show_product(
+    query,
+    product_id,
+):
+
+    product = get_product(
+        product_id
+    )
+
+    if not product:
+
+        await query.edit_message_text(
+            "❌ محصول پیدا نشد.",
+            reply_markup=home_button(),
+        )
+
+        return
+
+    name = product.get(
+        "name",
+        "محصول",
+    )
+
+    price = product.get(
+        "price",
+        0,
+    )
+
+    stock = product.get(
+        "stock",
+        0,
+    )
+
+    description = product.get(
+        "description",
+        "",
+    )
+
+    text = (
+
+        f"👗 {name}\n\n"
+
+        f"💰 قیمت: {price} افغانی\n"
+
+        f"📦 موجودی: {stock}\n\n"
+
+    )
+
+    if description:
+
+        text += (
+            f"📝 {description}\n\n"
+        )
+
+    keyboard = [
+
+        [
+            InlineKeyboardButton(
+                "🛒 افزودن به سبد",
+                callback_data=f"add:{product_id}",
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "⬅️ محصولات",
+                callback_data="products",
+            ),
+
+            InlineKeyboardButton(
+                "🏠 خانه",
+                callback_data="home",
+            ),
+        ],
+
+    ]
+
+    await query.edit_message_text(
+
+        text,
+
+        reply_markup=InlineKeyboardMarkup(
+            keyboard
+        ),
+    )
+
+
+# ============================================================
+# CART
+# ============================================================
+
+def get_cart(
+    context
+):
+
+    return context.user_data.setdefault(
+        "cart",
+        [],
+    )
+
+
+def cart_total(
+    context
+):
+
+    total = 0
+
+    for product_id in get_cart(
+        context
+    ):
+
+        product = get_product(
+            product_id
+        )
+
+        if product:
+
+            try:
+
+                total += float(
+                    product.get(
+                        "price",
+                        0,
+                    )
+                )
+
+            except Exception:
+
+                pass
+
+    return total
+
+
+async def show_cart(
+    query,
+    context,
+):
+
+    cart = get_cart(
+        context
+    )
+
+    if not cart:
+
+        await query.edit_message_text(
+
+            "🛒 سبد خرید شما خالی است.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+    lines = [
+        "🛒 سبد خرید شما\n"
+    ]
+
+    for product_id in cart:
+
+        product = get_product(
+            product_id
+        )
+
+        if product:
+
+            lines.append(
+
+                f"• {product.get('name')}\n"
+                f"  {product.get('price')} افغانی"
+
+            )
+
+    lines.append(
+
+        f"\n💰 مجموع: {cart_total(context):g} افغانی"
+    )
+
+    keyboard = [
+
+        [
+            InlineKeyboardButton(
+                "📱 ثبت سفارش",
+                callback_data="checkout",
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🗑 خالی کردن سبد",
+                callback_data="clear_cart",
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🏠 صفحه اصلی",
+                callback_data="home",
+            )
+        ],
+
+    ]
+
+    await query.edit_message_text(
+
+        "\n".join(lines),
+
+        reply_markup=InlineKeyboardMarkup(
+            keyboard
+        ),
+    )
+
+
+# ============================================================
+# CREATE ORDER
+# ============================================================
+
+def create_order(
+    user,
+    context,
+    phone,
+):
+
+    cart = get_cart(
+        context
+    )
+
+    if not cart:
+
+        return None
+
+    items = []
+
+    total = 0
+
+    for product_id in cart:
+
+        product = get_product(
+            product_id
+        )
+
+        if not product:
+
+            continue
+
+        try:
+
+            price = float(
+                product.get(
+                    "price",
+                    0,
+                )
+            )
+
+        except Exception:
+
+            price = 0
+
+        items.append(
+
+            {
+                "product_id": product.get("id"),
+                "name": product.get("name"),
+                "price": price,
+            }
+
+        )
+
+        total += price
+
+    if not items:
+
+        return None
+
+    order = {
+
+        "id": next_order_id(),
+
+        "user_id": user.id,
+
+        "name": user.full_name,
+
+        "username": user.username or "",
+
+        "phone": phone,
+
+        "items": items,
+
+        "total": total,
+
+        "status": "جدید",
+
+        "created_at": datetime.now().isoformat(),
+
+    }
+
+    data = get_orders()
+
+    data.append(
+        order
+    )
+
+    save_json(
+        ORDERS_FILE,
+        data,
+    )
+
+    context.user_data.clear()
+
+    return order
+
+
+# ============================================================
+# BUTTON HANDLER
+# ============================================================
+
+async def buttons(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
 ):
 
     query = update.callback_query
@@ -175,183 +842,978 @@ async def button_handler(
     await query.answer()
 
     user_id = query.from_user.id
+
     data = query.data
 
     logger.info(
-        "Button received: %s from user %s",
+        "BUTTON %s from %s",
         data,
-        user_id
+        user_id,
     )
 
-    # ---------------- HOME ----------------
 
+    # HOME
     if data == "home":
 
         await query.edit_message_text(
+
             "🏠 صفحه اصلی Mohammadi Fashion",
-            reply_markup=main_keyboard(user_id),
+
+            reply_markup=main_keyboard(
+                user_id
+            ),
         )
 
         return
 
-    # ---------------- PRODUCTS ----------------
 
+    # PRODUCTS
     if data == "products":
 
-        await query.edit_message_text(
-            "👗 محصولات فروشگاه\n\n"
-            "در نسخه بعدی محصولات، عکس، قیمت و موجودی "
-            "را اینجا اضافه می‌کنیم.",
-            reply_markup=home_keyboard(user_id),
+        await show_products(
+            query
         )
 
         return
 
-    # ---------------- CART ----------------
 
-    if data == "cart":
+    # PRODUCT
+    if data.startswith(
+        "product:"
+    ):
 
-        await query.edit_message_text(
-            "🛒 سبد خرید شما فعلاً خالی است.",
-            reply_markup=home_keyboard(user_id),
+        product_id = data.split(
+            ":",
+            1
+        )[1]
+
+        await show_product(
+            query,
+            product_id,
         )
 
         return
 
-    # ---------------- ORDERS ----------------
 
-    if data == "orders":
+    # ADD CART
+    if data.startswith(
+        "add:"
+    ):
 
-        await query.edit_message_text(
-            "📦 سفارش‌های من\n\n"
-            "هنوز سفارشی ثبت نشده است.",
-            reply_markup=home_keyboard(user_id),
+        product_id = data.split(
+            ":",
+            1
+        )[1]
+
+        product = get_product(
+            product_id
         )
 
-        return
-
-    # ---------------- CONTACT ----------------
-
-    if data == "contact":
-
-        await query.edit_message_text(
-            "📞 تماس با ما\n\n"
-            "Mohammadi Fashion\n"
-            "برای سفارش و معلومات بیشتر با مدیریت تماس بگیرید.",
-            reply_markup=home_keyboard(user_id),
-        )
-
-        return
-
-    # ---------------- ADMIN ----------------
-
-    if data == "admin":
-
-        if not ADMIN_ID or str(user_id) != ADMIN_ID:
+        if not product:
 
             await query.edit_message_text(
-                "❌ دسترسی غیرمجاز.",
-                reply_markup=home_keyboard(user_id),
+                "❌ محصول پیدا نشد.",
+                reply_markup=home_button(),
             )
 
             return
 
+        try:
+
+            stock = int(
+                product.get(
+                    "stock",
+                    0,
+                )
+            )
+
+        except Exception:
+
+            stock = 0
+
+        if stock <= 0:
+
+            await query.edit_message_text(
+
+                "❌ این محصول فعلاً موجود نیست.",
+
+                reply_markup=home_button(),
+            )
+
+            return
+
+        cart = get_cart(
+            context
+        )
+
+        if product_id not in cart:
+
+            cart.append(
+                product_id
+            )
+
         await query.edit_message_text(
-            "⚙️ پنل مدیریت Mohammadi Fashion\n\n"
-            "پنل مدیریت آماده است.",
-            reply_markup=InlineKeyboardMarkup([
+
+            f"✅ {product.get('name')}\n"
+            "به سبد خرید اضافه شد.",
+
+            reply_markup=InlineKeyboardMarkup(
+
                 [
-                    InlineKeyboardButton(
-                        "🏠 صفحه اصلی",
-                        callback_data="home"
-                    )
+
+                    [
+                        InlineKeyboardButton(
+                            "🛒 سبد خرید",
+                            callback_data="cart",
+                        )
+                    ],
+
+                    [
+                        InlineKeyboardButton(
+                            "👗 محصولات",
+                            callback_data="products",
+                        )
+                    ],
+
+                    [
+                        InlineKeyboardButton(
+                            "🏠 خانه",
+                            callback_data="home",
+                        )
+                    ],
+
                 ]
-            ]),
+            ),
         )
 
         return
 
 
-# =========================================================
-# NORMAL TEXT
-# =========================================================
+    # CART
+    if data == "cart":
+
+        await show_cart(
+            query,
+            context,
+        )
+
+        return
+
+
+    # CLEAR CART
+    if data == "clear_cart":
+
+        context.user_data[
+            "cart"
+        ] = []
+
+        await query.edit_message_text(
+
+            "🗑 سبد خرید خالی شد.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # CHECKOUT
+    if data == "checkout":
+
+        if not get_cart(
+            context
+        ):
+
+            await query.edit_message_text(
+
+                "🛒 سبد خرید خالی است.",
+
+                reply_markup=home_button(),
+            )
+
+            return
+
+        context.user_data[
+            "state"
+        ] = "phone"
+
+        await query.edit_message_text(
+
+            "📱 لطفاً شماره تماس خود را ارسال کنید.\n\n"
+            "مثال:\n"
+            "07XXXXXXXX",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # MY ORDERS
+    if data == "my_orders":
+
+        user_orders = [
+
+            order
+
+            for order in get_orders()
+
+            if str(
+                order.get(
+                    "user_id"
+                )
+            ) == str(
+                user_id
+            )
+
+        ]
+
+        if not user_orders:
+
+            await query.edit_message_text(
+
+                "📦 شما هنوز سفارشی ثبت نکرده‌اید.",
+
+                reply_markup=home_button(),
+            )
+
+            return
+
+        lines = [
+            "📦 سفارش‌های شما\n"
+        ]
+
+        for order in user_orders[-10:]:
+
+            lines.append(
+
+                f"🧾 سفارش #{order.get('id')}\n"
+                f"💰 {order.get('total', 0):g} افغانی\n"
+                f"📌 وضعیت: {order.get('status')}\n"
+
+            )
+
+        await query.edit_message_text(
+
+            "\n".join(lines),
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # SEARCH
+    if data == "search":
+
+        context.user_data[
+            "state"
+        ] = "search"
+
+        await query.edit_message_text(
+
+            "🔎 نام محصول مورد نظر را بنویسید.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # CUSTOM
+    if data == "custom":
+
+        context.user_data[
+            "state"
+        ] = "custom"
+        
+        await query.edit_message_text(
+
+            "🧵 دوخت سفارشی\n\n"
+            "لطفاً توضیحات لباس مورد نظر خود را ارسال کنید.\n"
+            "مثلاً رنگ، مدل و اندازه.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # CONTACT
+    if data == "contact":
+
+        await query.edit_message_text(
+
+            "📞 تماس با ما\n\n"
+            "Mohammadi Fashion\n\n"
+            "برای سفارش و معلومات بیشتر با مدیریت فروشگاه تماس بگیرید.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # ADMIN
+    if data == "admin":
+
+        if not is_admin(
+            user_id
+        ):
+
+            await query.edit_message_text(
+                "❌ دسترسی غیرمجاز."
+            )
+
+            return
+
+        keyboard = [
+
+            [
+                InlineKeyboardButton(
+                    "📊 آمار",
+                    callback_data="admin_stats",
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    "📦 سفارش‌ها",
+                    callback_data="admin_orders",
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    "➕ افزودن محصول",
+                    callback_data="admin_add",
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    "🗑 حذف محصول",
+                    callback_data="admin_delete",
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    "🏠 صفحه اصلی",
+                    callback_data="home",
+                )
+            ],
+
+        ]
+
+        await query.edit_message_text(
+
+            "⚙️ پنل مدیریت Mohammadi Fashion",
+
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
+        )
+
+        return
+
+
+    # ADMIN STATS
+    if data == "admin_stats":
+
+        if not is_admin(
+            user_id
+        ):
+
+            return
+
+        product_count = len(
+            get_products()
+        )
+
+        order_count = len(
+            get_orders()
+        )
+
+        await query.edit_message_text(
+
+            "📊 آمار فروشگاه\n\n"
+
+            f"👗 محصولات: {product_count}\n"
+            f"📦 سفارش‌ها: {order_count}",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # ADMIN ORDERS
+    if data == "admin_orders":
+
+        if not is_admin(
+            user_id
+        ):
+
+            return
+
+        items = get_orders()
+
+        if not items:
+
+            await query.edit_message_text(
+
+                "📦 هنوز سفارشی وجود ندارد.",
+
+                reply_markup=home_button(),
+            )
+
+            return
+
+        lines = [
+            "📦 آخرین سفارش‌ها\n"
+        ]
+
+        for order in items[-20:]:
+
+            lines.append(
+
+                f"#{order.get('id')} | "
+                f"{order.get('name')} | "
+                f"{order.get('total', 0):g} افغانی | "
+                f"{order.get('status')}"
+
+            )
+
+        await query.edit_message_text(
+
+            "\n".join(lines),
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # ADMIN ADD
+    if data == "admin_add":
+
+        if not is_admin(
+            user_id
+        ):
+
+            return
+
+        context.user_data[
+            "state"
+        ] = "admin_name"
+
+        await query.edit_message_text(
+
+            "➕ افزودن محصول\n\n"
+            "نام محصول را ارسال کنید.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+    # ADMIN DELETE
+    if data == "admin_delete":
+
+        if not is_admin(
+            user_id
+        ):
+
+            return
+
+        context.user_data[
+            "state"
+        ] = "admin_delete"
+
+        await query.edit_message_text(
+
+            "🗑 حذف محصول\n\n"
+            "ID محصول را ارسال کنید.",
+
+            reply_markup=home_button(),
+        )
+
+        return
+
+
+# ============================================================
+# TEXT HANDLER
+# ============================================================
 
 async def text_handler(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE
+    context: ContextTypes.DEFAULT_TYPE,
 ):
 
-    text = update.message.text.strip()
+    text = (
+        update.message.text or ""
+    ).strip()
 
-    logger.info(
-        "Message received from %s: %s",
-        update.effective_user.id,
-        text
+    user = update.effective_user
+
+    state = context.user_data.get(
+        "state"
     )
 
+    logger.info(
+        "MESSAGE from %s: %s",
+        user.id,
+        text,
+    )
+
+
+    # PHONE
+    if state == "phone":
+
+        order = create_order(
+            user,
+            context,
+            text,
+        )
+
+        if not order:
+
+            await update.message.reply_text(
+
+                "❌ سفارش ثبت نشد.\n"
+                "لطفاً دوباره تلاش کنید.",
+
+                reply_markup=main_keyboard(
+                    user.id
+                ),
+            )
+
+            return
+
+        await update.message.reply_text(
+
+            "✅ سفارش شما ثبت شد.\n\n"
+
+            f"🧾 شماره سفارش: #{order['id']}\n"
+            f"💰 مبلغ: {order['total']:g} افغانی\n"
+            f"📱 شماره تماس: {order['phone']}\n\n"
+
+            "مدیریت فروشگاه با شما تماس خواهد گرفت.",
+
+            reply_markup=main_keyboard(
+                user.id
+            ),
+        )
+
+        if ADMIN_ID:
+
+            try:
+
+                await context.bot.send_message(
+
+                    chat_id=int(
+                        ADMIN_ID
+                    ),
+
+                    text=(
+
+                        "🔔 سفارش جدید\n\n"
+
+                        f"🧾 سفارش: #{order['id']}\n"
+                        f"👤 مشتری: {order['name']}\n"
+                        f"📱 تماس: {order['phone']}\n"
+                        f"💰 مبلغ: {order['total']:g} افغانی"
+
+                    ),
+                )
+
+            except Exception as error:
+
+                logger.error(
+                    "Admin notification error: %s",
+                    error,
+                )
+
+        return
+
+
+    # SEARCH
+    if state == "search":
+
+        context.user_data.clear()
+
+        found = []
+
+        for product in get_products():
+
+            name = str(
+                product.get(
+                    "name",
+                    ""
+                )
+            ).lower()
+
+            if text.lower() in name:
+
+                found.append(
+                    product
+                )
+
+        if not found:
+
+            await update.message.reply_text(
+
+                "❌ محصولی با این نام پیدا نشد.",
+
+                reply_markup=main_keyboard(
+                    user.id
+                ),
+            )
+
+            return
+
+        keyboard = []
+
+        for product in found[:20]:
+
+            keyboard.append(
+
+                [
+                    InlineKeyboardButton(
+                        product.get(
+                            "name",
+                            "محصول"
+                        ),
+                        callback_data=(
+                            f"product:{product.get('id')}"
+                        ),
+                    )
+                ]
+            )
+
+        keyboard.append(
+
+            [
+                InlineKeyboardButton(
+                    "🏠 خانه",
+                    callback_data="home",
+                )
+            ]
+        )
+
+        await update.message.reply_text(
+
+            "🔎 نتایج جستجو:",
+
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
+        )
+
+        return
+
+
+    # CUSTOM SEWING
+    if state == "custom":
+
+        context.user_data.clear()
+
+        await update.message.reply_text(
+
+            "🧵 توضیحات دوخت سفارشی شما دریافت شد ✅\n\n"
+            "مدیریت فروشگاه بررسی می‌کند و با شما تماس می‌گیرد.",
+
+            reply_markup=main_keyboard(
+                user.id
+            ),
+        )
+
+        if ADMIN_ID:
+
+            try:
+
+                await context.bot.send_message(
+
+                    chat_id=int(
+                        ADMIN_ID
+                    ),
+
+                    text=(
+
+                        "🧵 درخواست دوخت سفارشی\n\n"
+
+                        f"👤 مشتری: {user.full_name}\n"
+                        f"🆔 User ID: {user.id}\n\n"
+                        f"📝 توضیحات:\n{text}"
+
+                    ),
+                )
+
+            except Exception as error:
+
+                logger.error(
+                    "Custom sewing notification error: %s",
+                    error,
+                )
+
+        return
+
+
+    # ADMIN ADD NAME
+    if is_admin(
+        user.id
+    ) and state == "admin_name":
+
+        context.user_data[
+            "new_product"
+        ] = {
+            "name": text
+        }
+
+        context.user_data[
+            "state"
+        ] = "admin_price"
+
+        await update.message.reply_text(
+
+            "💰 قیمت محصول را به افغانی ارسال کنید."
+
+        )
+
+        return
+
+
+    # ADMIN PRICE
+    if is_admin(
+        user.id
+    ) and state == "admin_price":
+
+        try:
+
+            price = float(
+                text.replace(
+                    ",",
+                    "",
+                )
+            )
+
+        except ValueError:
+
+            await update.message.reply_text(
+                "❌ لطفاً فقط عدد قیمت را ارسال کنید."
+            )
+
+            return
+
+        context.user_data[
+            "new_product"
+        ][
+            "price"
+        ] = price
+
+        context.user_data[
+            "state"
+        ] = "admin_stock"
+
+        await update.message.reply_text(
+
+            "📦 موجودی محصول را ارسال کنید."
+
+        )
+
+        return
+
+
+    # ADMIN STOCK
+    if is_admin(
+        user.id
+    ) and state == "admin_stock":
+
+        try:
+
+            stock = int(
+                text
+            )
+
+        except ValueError:
+
+            await update.message.reply_text(
+                "❌ لطفاً فقط عدد موجودی را ارسال کنید."
+            )
+
+            return
+
+        product = context.user_data[
+            "new_product"
+        ]
+
+        product[
+            "id"
+        ] = next_product_id()
+
+        product[
+            "stock"
+        ] = stock
+
+        product[
+            "description"
+        ] = ""
+
+        product[
+            "photo"
+        ] = ""
+
+        data = get_products()
+
+        data.append(
+            product
+        )
+
+        save_json(
+            PRODUCTS_FILE,
+            data,
+        )
+
+        context.user_data.clear()
+
+        await update.message.reply_text(
+
+            "✅ محصول با موفقیت اضافه شد.",
+
+            reply_markup=main_keyboard(
+                user.id
+            ),
+        )
+
+        return
+
+
+    # ADMIN DELETE
+    if is_admin(
+        user.id
+    ) and state == "admin_delete":
+
+        data = get_products()
+
+        new_data = [
+
+            product
+
+            for product in data
+
+            if str(
+                product.get(
+                    "id"
+                )
+            ) != text
+
+        ]
+
+        if len(
+            new_data
+        ) == len(
+            data
+        ):
+
+            await update.message.reply_text(
+
+                "❌ محصولی با این ID پیدا نشد."
+
+            )
+
+            return
+
+        save_json(
+            PRODUCTS_FILE,
+            new_data,
+        )
+
+        context.user_data.clear()
+
+        await update.message.reply_text(
+
+            "✅ محصول حذف شد.",
+
+            reply_markup=main_keyboard(
+                user.id
+            ),
+        )
+
+        return
+
+
+    # NORMAL MESSAGE
     await update.message.reply_text(
-        "پیام شما دریافت شد ✅\n\n"
-        "لطفاً از دکمه‌های فروشگاه استفاده کنید.",
+
+        "سلام 🌸\n\n"
+        "پیام شما دریافت شد.\n"
+        "برای استفاده از فروشگاه یکی از گزینه‌های زیر را انتخاب کنید.",
+
         reply_markup=main_keyboard(
-            update.effective_user.id
+            user.id
         ),
     )
 
 
-# =========================================================
+# ============================================================
 # ERROR HANDLER
-# =========================================================
+# ============================================================
 
 async def error_handler(
-    update: object,
-    context: ContextTypes.DEFAULT_TYPE
+    update,
+    context,
 ):
 
     logger.error(
-        "Telegram error: %s",
-        context.error
+        "TELEGRAM ERROR: %s",
+        context.error,
     )
 
 
-# =========================================================
+# ============================================================
 # MAIN
-# =========================================================
+# ============================================================
 
 def main():
 
-    # ---------------- TOKEN CHECK ----------------
+    # --------------------------------------------------------
+    # TOKEN CHECK
+    # --------------------------------------------------------
 
-    if not TOKEN:
+    if not BOT_TOKEN:
 
         raise RuntimeError(
-            "BOT_TOKEN is not configured in Render."
+            "BOT_TOKEN is missing. "
+            "Add BOT_TOKEN in Render Environment Variables."
         )
 
     logger.info(
-        "BOT TOKEN loaded: %s",
-        bool(TOKEN)
+        "BOT TOKEN loaded: True"
     )
 
-    # ---------------- WEB SERVER ----------------
+
+    # --------------------------------------------------------
+    # RENDER WEB SERVER
+    # --------------------------------------------------------
 
     web_thread = threading.Thread(
-        target=run_web_server,
+        target=start_web_server,
         daemon=True,
     )
 
     web_thread.start()
 
-    logger.info(
-        "Render health server started on port %s",
-        PORT
-    )
 
-    # ---------------- TELEGRAM APP ----------------
+    # --------------------------------------------------------
+    # TELEGRAM APPLICATION
+    # --------------------------------------------------------
 
     app = (
         Application
         .builder()
-        .token(TOKEN)
+        .token(BOT_TOKEN)
         .build()
     )
 
@@ -359,58 +1821,96 @@ def main():
         "Telegram application created."
     )
 
-    # ---------------- HANDLERS ----------------
+
+    # --------------------------------------------------------
+    # COMMANDS
+    # --------------------------------------------------------
 
     app.add_handler(
         CommandHandler(
             "start",
-            start
+            start,
         )
     )
 
     app.add_handler(
         CommandHandler(
             "help",
-            help_command
+            help_command,
         )
     )
+
+    app.add_handler(
+        CommandHandler(
+            "cancel",
+            cancel,
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # BUTTONS
+    # --------------------------------------------------------
 
     app.add_handler(
         CallbackQueryHandler(
-            button_handler
+            buttons,
         )
     )
 
+
+    # --------------------------------------------------------
+    # TEXT
+    # --------------------------------------------------------
+
     app.add_handler(
+
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            text_handler
+
+            filters.TEXT
+            & ~filters.COMMAND,
+
+            text_handler,
+
         )
+
     )
+
+
+    # --------------------------------------------------------
+    # ERROR
+    # --------------------------------------------------------
 
     app.add_error_handler(
         error_handler
     )
 
-    # ---------------- START ----------------
+
+    # --------------------------------------------------------
+    # START POLLING
+    # --------------------------------------------------------
 
     logger.info(
-        "Mohammadi Fashion Bot is starting..."
+        "Mohammadi Fashion Bot is running..."
     )
 
     logger.info(
-        "Polling started."
+        "Starting Telegram polling..."
     )
 
     app.run_polling(
+
         drop_pending_updates=True,
+
         allowed_updates=Update.ALL_TYPES,
+
     )
 
 
-# =========================================================
+# ============================================================
 # RUN
-# =========================================================
+# ============================================================
 
 if __name__ == "__main__":
+
     main()
