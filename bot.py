@@ -17,9 +17,10 @@ from telegram.ext import (
 )
 
 # ==========================================
-# Mohammadi Fashion Bot (Unicode Safe Version)
+# Mohammadi Fashion Bot (نسخه کاملا اصلاح شده)
 # ==========================================
 
+# توکن ربات شما (در صورت تمایل می‌توانید در پنل رندر به صورت Env Variable ست کنید)
 TOKEN = os.getenv("BOT_TOKEN", "8850373531:AAHYa_Fdz4tLlZik8pL8uTBsaYHp8b80U-0").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0") or 0)
 PORT = int(os.getenv("PORT", "10000"))
@@ -31,16 +32,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mohammadi-fashion")
 
-# متون یونیکد برای پیش‌فرض‌ها
-DEFAULT_PRODUCT_NAME = u"\u0628\u062e\u0645\u0644 \u0646\u06af\u06cc\u0646 \u062f\u0627\u0631"
-DEFAULT_PRODUCT_DESC = u"\u0644\u0628\u0627\u0633 \u0628\u062e\u0645\u0644 \u0646\u06af\u06cc\u0646 \u062f\u0627\u0631"
-
 DEFAULT_DATA = {
     "products": {
         "1": {
-            "name": DEFAULT_PRODUCT_NAME,
+            "name": "بخمل نگین دار",
             "price": 700,
-            "description": DEFAULT_PRODUCT_DESC,
+            "description": "لباس بخمل نگین دار با کیفیت عالی",
             "photo": "",
             "active": True,
         }
@@ -74,58 +71,62 @@ DATA_LOCK = threading.Lock()
 def is_admin(update: Update) -> bool:
     return bool(ADMIN_ID and update.effective_user and update.effective_user.id == ADMIN_ID)
 
-# دکمه‌های اصلی و ادمین با متون یونیکد امن
+# دکمه‌های اصلی و ادمین با متون فارسی مستقیم
 def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(u"\ud83d\udc5d \u0645\u062d\u0635\u0648\u0644\u0627\u062a", callback_data="products")],
-        [InlineKeyboardButton(u"\ud83d\udce6 \u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627\u06cc \u0645\u0646", callback_data="my_orders")],
-        [InlineKeyboardButton(u"\u260e\ufe0f \u062a\u0645\u0627\u0633 \u0628\u0627 \u0645\u0627", callback_data="contact")]
+        [InlineKeyboardButton("🛍 محصولات", callback_data="products")],
+        [InlineKeyboardButton("📦 سفارش‌های من", callback_data="my_orders")],
+        [InlineKeyboardButton("☎️ تماس با ما", callback_data="contact")]
     ])
 
 def admin_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(u"\u2795 \u0627\u0641\u0632\u0648\u062f\u0646 \u0645\u062d\u0635\u0648\u0644", callback_data="admin_add")],
-        [InlineKeyboardButton(u"\ud83d\udccb \u0645\u0622\u06cc\u0631\u06cc\u062a \u0645\u062d\u0635\u0648\u0644\u0627\u062a", callback_data="admin_products")],
-        [InlineKeyboardButton(u"\ud83d\udce6 \u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627", callback_data="admin_orders")],
-        [InlineKeyboardButton(u"\ud83c\udfe0 \u0641\u0631\u0648\u0634\u06af\u0627\u0647", callback_data="home")]
+        [InlineKeyboardButton("➕ افزودن محصول", callback_data="admin_add")],
+        [InlineKeyboardButton("📋 مدیریت محصولات", callback_data="admin_products")],
+        [InlineKeyboardButton("📦 سفارش‌ها", callback_data="admin_orders")],
+        [InlineKeyboardButton("🏠 فروشگاه", callback_data="home")]
     ])
 
 def products_keyboard(data):
     rows = []
     for pid, product in data["products"].items():
         if product.get("active", True):
-            name = product.get('name', u'\u0645\u062d\u0635\u0648\u0644')
+            name = product.get('name', 'محصول')
             price = product.get('price', 0)
-            rows.append([InlineKeyboardButton(f"{name} \u2014 {price} \u0627\u0641\u063a\u0627\u0646\u06cc", callback_data=f"product:{pid}")])
-    rows.append([InlineKeyboardButton(u"\ud83c\udfe0 \u0628\u0631\u06af\u0634\u062a", callback_data="home")])
+            rows.append([InlineKeyboardButton(f"{name} — {price} افغانی", callback_data=f"product:{pid}")])
+    rows.append([InlineKeyboardButton("🏠 برگشت", callback_data="home")])
     return InlineKeyboardMarkup(rows)
 
 def admin_products_keyboard(data):
     rows = []
     for pid, product in data["products"].items():
-        name = product.get('name', u'\u0645\u062d\u0635\u0648\u0644')
+        name = product.get('name', 'محصول')
         rows.append([InlineKeyboardButton(f"{name} ({pid})", callback_data=f"edit:{pid}")])
-    rows.append([InlineKeyboardButton(u"\u2795 \u0627\u0641\u0632\u0648\u062f\u0646", callback_data="admin_add")])
-    rows.append([InlineKeyboardButton(u"\ud83c\udfe0 \u0628\u0631\u06af\u0634\u062a", callback_data="admin")])
+    rows.append([InlineKeyboardButton("➕ افزودن", callback_data="admin_add")])
+    rows.append([InlineKeyboardButton("🏠 برگشت", callback_data="admin")])
     return InlineKeyboardMarkup(rows)
 
 def product_text(product):
     return (
-        f"\ud83d\udc5d <b>{product.get('name')}</b>\n\n"
-        f"\ud83d\udcb0 \u0642\u06cc\u0645\u062a: <b>{product.get('price', 0)} \u0627\u0641\u063a\u0627\u0646\u06cc</b>\n"
-        f"\ud83d\udcdd {product.get('description', '')}"
+        f"🛍 <b>{product.get('name')}</b>\n\n"
+        f"💰 قیمت: <b>{product.get('price', 0)} افغانی</b>\n"
+        f"📝 {product.get('description', '')}"
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    text = u"\ud83c\udf38 <b>\u0628\u0647 Mohammadi Fashion \u062e\u0648\u0634 \u0622\u0645\u062f\u06cc\u062f</b> \ud83c\udf38\n\n\u0641\u0631\u0648\u0634\u06af\u0627\u0647 \u0644\u0628\u0627\u0633 \u063convenient\u0647\n\u0628\u0631\u0627\u06cc \u062f\u06cc\u062f\u0646 \u0645\u062d\u0635\u0648\u0644\u0627\u062a \u0627\u0632 \u062f\u06a9\u0645\u0647 \u0632\u06cc\u0631 \u0627\u063a\u0627\u0632 \u06a9\u0646\u06cc\u062f."
+    text = (
+        "🌸 <b>به Mohammadi Fashion خوش آمدید</b> 🌸\n\n"
+        "فروشگاه لباس زنانه\n"
+        "برای دیدن محصولات از دکمه زیر استفاده کنید."
+    )
     await update.message.reply_text(text, parse_mode="HTML", reply_markup=main_keyboard())
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text(u"\u26d4 \u062a\u0648\u062c\u0647! \u062a\u0646\u0647\u0627 \u0645\u062f\u06cc\u0631 \u062f\u0633\u062a\u0631\u0633\u06cc \u062f\u0627\u0631\u062f.")
+        await update.message.reply_text("⛔ این بخش فقط برای مدیر فروشگاه است.")
         return
-    await update.message.reply_text(u"\u2699\ufe0f <b>\u067e\u0646\u0644 \u0645\u062f\u06cc\u0631\u06cc\u062a</b>", parse_mode="HTML", reply_markup=admin_keyboard())
+    await update.message.reply_text("⚙️ <b>پنل مدیریت</b>", parse_mode="HTML", reply_markup=admin_keyboard())
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -133,15 +134,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "home":
-        await query.edit_message_text(u"\ud83c\udf38 <b>Mohammadi Fashion</b> \ud83c\udf38\n\n\u0628\u0647 \u0641\u0631\u064\u0634\u06af\u0627\u0647 \u062e\u0648\u0634 \u0622\u0645\u062f\u06cc\u062f.", parse_mode="HTML", reply_markup=main_keyboard())
+        await query.edit_message_text(
+            "🌸 <b>Mohammadi Fashion</b> 🌸\n\nبه فروشگاه خوش آمدید.", 
+            parse_mode="HTML", 
+            reply_markup=main_keyboard()
+        )
         return
 
     if data == "products":
         with DATA_LOCK: current = json.loads(json.dumps(DATA, ensure_ascii=False))
         if not any(p.get("active", True) for p in current["products"].values()):
-            await query.edit_message_text(u"\u0641\u0639\u0644\u0627\u064b \u0645\u062d\u0635\u0648\u0644\u06cc \u0645\u0648\u062c\u0648\u062f \u0646\u06cc\u0633\u062a.", reply_markup=main_keyboard())
+            await query.edit_message_text("فعلاً محصولی برای نمایش وجود ندارد.", reply_markup=main_keyboard())
             return
-        await query.edit_message_text(u"\ud83d\udc5d <b>\u0645\u062d\u0635\u0648\u0644\u0627\u062a \u0641\u0631\u0648\u0634\u06af\u0627\u0647</b>\n\n\u06cc\u06a9\u062e \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f:", parse_mode="HTML", reply_markup=products_keyboard(current))
+        await query.edit_message_text(
+            "🛍 <b>محصولات فروشگاه</b>\n\nیک محصول را انتخاب کنید:", 
+            parse_mode="HTML", 
+            reply_markup=products_keyboard(current)
+        )
         return
 
     if data.startswith("product:"):
@@ -150,12 +159,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             product = DATA["products"].get(pid)
             product = dict(product) if product else None
         if not product or not product.get("active", True):
-            await query.edit_message_text(u"\u0627\u06cc\u0646 \u0645\u062d\u0635\u0648\u0644 \u0646\u0627\u0645\u0648\u062c\u0648\u062f \u0634\u062f\u0647 \u0627\u0633\u062a.", reply_markup=main_keyboard())
+            await query.edit_message_text("این محصول دیگر موجود نیست.", reply_markup=main_keyboard())
             return
 
         buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton(u"\ud83d\uded2 \u062b\u0628\u062a \u0633\u0641\u0627\u0631\u0634", callback_data=f"order:{pid}")],
-            [InlineKeyboardButton(u"\u2b05\ufe0f \u0645\u062d\u0635\u0648\u0644\u0627\u062a", callback_data="products")]
+            [InlineKeyboardButton("🛒 ثبت سفارش", callback_data=f"order:{pid}")],
+            [InlineKeyboardButton("⬅️ محصولات", callback_data="products")]
         ])
 
         if product.get("photo"):
@@ -175,11 +184,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not product: return
         context.user_data["order_product_id"] = pid
         context.user_data["state"] = "waiting_name"
-        await query.edit_message_text(f"\ud83d\uded2 \u0633\u0641\u0627\u0631\u0634 <b>{product.get('name')}</b>\n\n\u0644\u063a\u0641\u0627\u064b \u0646\u0627\u0645 \u062e\u0648\u062f \u0631\u0627 \u0627\u0631\u0633\u0627\u0646 \u06a9\u0646\u06cc\u062f:", parse_mode="HTML")
+        await query.edit_message_text(f"🛒 سفارش <b>{product.get('name')}</b>\n\nلطفاً نام خود را ارسال کنید:", parse_mode="HTML")
+        return
+
+    if data == "my_orders":
+        uid = update.effective_user.id
+        with DATA_LOCK:
+            orders = [o for o in DATA["orders"] if o.get("user_id") == uid]
+        if not orders:
+            text = "📦 هنوز سفارشی ثبت نکرده‌اید."
+        else:
+            lines = ["📦 <b>سفارش‌های شما</b>\n"]
+            for o in orders[-10:]:
+                lines.append(f"#{o['id']} — {o['product_name']} — {o['price']} افغانی — {o['status']}")
+            text = "\n".join(lines)
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=main_keyboard())
         return
 
     if data == "contact":
-        await query.edit_message_text(u"\u260e\ufe0f <b>\u062a\u0645\u0627\u0633 \u0628\u0627 \u0641\u0631\u0648\u0634\u06af\u0627\u0647</b>\n\n\u0628\u0631\u0627\u06cc \u0633\u0641\u0627\u0631\u0634 \u0628\u0647 \u0647\u0645\u06cc\u0646 \u0631\u0628\u0627\u062a \u067e\u06cc\u0627\u0645 \u062f\u0647\u06cc\u062f.\n\ud83d\udccd \u06a9\u0627\u0628\u0644\u060c \u062f\u0647 \u0627\u0641\u063a\u0627\u0646\u0627\u0646", parse_mode="HTML", reply_markup=main_keyboard())
+        await query.edit_message_text("☎️ <b>تماس با Mohammadi Fashion</b>\n\nبرای سفارش و هماهنگی، به همین ربات پیام بفرستید.\n📍 کابل، ده افغانان", parse_mode="HTML", reply_markup=main_keyboard())
+        return
+
+    # پارت مربوط به پنل ادمین
+    if data == "admin":
+        if not is_admin(update): return
+        await query.edit_message_text("⚙️ <b>پنل مدیریت</b>", parse_mode="HTML", reply_markup=admin_keyboard())
+        return
+
+    if data == "admin_orders":
+        if not is_admin(update): return
+        with DATA_LOCK: orders = list(DATA["orders"][-20:])
+        if not orders:
+            text = "📦 هنوز سفارشی ثبت نشده است."
+        else:
+            lines = ["📦 <b>آخرین سفارش‌ها</b>\n"]
+            for o in orders:
+                lines.append(f"#{o['id']} | {o['product_name']} | {o['price']} افغانی\n👤 {o['customer_name']} | @{o.get('username', '-')} | {o['status']}")
+            text = "\n\n".join(lines)
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=admin_keyboard())
         return
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -189,7 +231,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state == "waiting_name":
         context.user_data["customer_name"] = update.message.text.strip()
         context.user_data["state"] = "waiting_phone"
-        await update.message.reply_text(u"\ud83d\udcf1 \u0644\u063a\u0641\u0627\u064b \u0634\u0645\u0627\u0631\u0647 \u062a\u0645\u0627\u0633 \u062e\u0648\u062f \u0631\u0627 \u0627\u0631\u0633\u0627\u0646 \u06a9\u0646\u06cc\u062f:")
+        await update.message.reply_text("📱 لطفاً شماره تماس خود را ارسال کنید:")
         return
 
     if state == "waiting_phone":
+        phone = update.message.text.strip()
+        pid = context.user_data.get("order_product_id")
+        name = context.user_data.get("customer_name", "-")
+
+        with DATA_LOCK:
+            product = DATA["products"].get(pid)
+            if not product:
+                await update.message.reply_text("محصول یافت نشد.")
+                return
+            order_id = len(DATA["orders"]) + 1
+            order = {
+                "id": order_id,
+                "user_id": update.effective_user.id,
+                "username": update.effective_user.username or "-",
+                "customer_name": name,
+                "phone": phone,
+                "product_id": pid,
+                "product_name": product["name"],
+                "price": product["price"],
+                "status": "در انتظار تماس",
+            }
+            DATA["orders"].append(order)
