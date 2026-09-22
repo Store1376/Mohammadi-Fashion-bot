@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import threading
 from pathlib import Path
 from aiohttp import web
 
@@ -16,13 +17,12 @@ from telegram.ext import (
 )
 
 # ==========================================
-# Mohammadi Fashion Bot (نسخه نهایی تحت وب)
+# Mohammadi Fashion Bot (نسخه اصلاح شده نهایی)
 # ==========================================
 
 TOKEN = os.getenv("BOT_TOKEN", "8850373531:AAHYa_Fdz4tLlZik8pL8uTBsaYHp8b80U-0").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0") or 0)
 PORT = int(os.getenv("PORT", "10000"))
-# آدرس دامنه شما در رندر (مثال: https://onrender.com)
 RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 
 DATA_FILE = Path(os.getenv("DATA_FILE", "data.json"))
@@ -226,6 +226,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception: pass
         return
 
+# ==========================================
+# سیستم وب‌سرور داخلی رندر برای بیدار ماندن
+# ==========================================
+async def dummy_handler(request):
+    return web.Response(text="OK")
+
+def run_server(port):
+    server = web.Application()
+    server.router.add_get('/', dummy_handler)
+    web.run_app(server, host="0.0.0.0", port=port, handle_signals=False)
+
 def main():
     if not TOKEN:
         logger.error("No token found!")
@@ -238,9 +249,8 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    # اگر دامنه بیرونی در رندر تنظیم شده باشد، از وب‌هوک استفاده می‌شود، در غیر این صورت پولینگ
     if RENDER_EXTERNAL_URL:
-        logger.info(u"Starting with Webhook on URL: " + RENDER_EXTERNAL_URL)
+        logger.info("Starting with Webhook on URL: " + RENDER_EXTERNAL_URL)
         app.run_webhook(
             listen="0.0.0.0",
             port=PORT,
@@ -249,9 +259,3 @@ def main():
         )
     else:
         logger.info("Starting with Polling (Local mode)...")
-        # یک سرور موقت برای پورت رندر در حالت محلی تا خطا ندهد
-        async def dummy_handler(request): return web.Response(text="OK")
-        server = web.Application()
-        server.router.add_get('/', dummy_handler)
-        
-        def run_server():
