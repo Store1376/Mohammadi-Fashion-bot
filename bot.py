@@ -1,9 +1,7 @@
-
 import os
 import json
 import logging
 import threading
-import time
 from pathlib import Path
 from datetime import datetime
 
@@ -64,8 +62,6 @@ logger = logging.getLogger(
     "MohammadiFashion"
 )
 
-DATA_LOCK = threading.RLock()
-
 
 # ============================================================
 # FLASK / RENDER
@@ -125,49 +121,31 @@ def load_json(
 
     try:
 
-        with DATA_LOCK:
+        if not file_path.exists():
 
-            if not file_path.exists():
-
-                save_json(
-                    file_path,
-                    default,
-                )
-
-                return default
-
-            content = file_path.read_text(
-                encoding="utf-8"
-            ).strip()
-
-            if not content:
-
-                return default
-
-            return json.loads(
-                content
+            save_json(
+                file_path,
+                default,
             )
 
-    except (
-        json.JSONDecodeError,
-        OSError,
-        TypeError,
-        ValueError,
-    ) as error:
+            return default
 
-        logger.exception(
-            "Database read error for %s: %s",
-            file_path,
-            error,
+        content = file_path.read_text(
+            encoding="utf-8"
+        ).strip()
+
+        if not content:
+
+            return default
+
+        return json.loads(
+            content
         )
-
-        return default
 
     except Exception as error:
 
-        logger.exception(
-            "Unexpected database read error for %s: %s",
-            file_path,
+        logger.error(
+            "Database read error: %s",
             error,
         )
 
@@ -179,44 +157,23 @@ def save_json(
     data,
 ):
 
-    temp_path = file_path.with_suffix(
-        file_path.suffix + ".tmp"
-    )
-
     try:
 
-        with DATA_LOCK:
-
-            temp_path.write_text(
-                json.dumps(
-                    data,
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-
-            temp_path.replace(
-                file_path
-            )
+        file_path.write_text(
+            json.dumps(
+                data,
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     except Exception as error:
 
-        logger.exception(
-            "Database save error for %s: %s",
-            file_path,
+        logger.error(
+            "Database save error: %s",
             error,
         )
-
-        try:
-
-            if temp_path.exists():
-
-                temp_path.unlink()
-
-        except Exception:
-
-            pass
 
 
 def get_products():
@@ -239,9 +196,7 @@ def get_orders():
 # HELPERS
 # ============================================================
 
-def is_admin(
-    user_id
-):
+def is_admin(user_id):
 
     if not ADMIN_ID:
 
@@ -252,15 +207,11 @@ def is_admin(
     )
 
 
-def get_product(
-    product_id
-):
+def get_product(product_id):
 
     for product in get_products():
 
-        if str(
-            product.get("id")
-        ) == str(
+        if str(product.get("id")) == str(
             product_id
         ):
 
@@ -284,12 +235,7 @@ def next_product_id():
         try:
 
             numbers.append(
-                int(
-                    item.get(
-                        "id",
-                        0,
-                    )
-                )
+                int(item.get("id", 0))
             )
 
         except Exception:
@@ -320,12 +266,7 @@ def next_order_id():
         try:
 
             numbers.append(
-                int(
-                    item.get(
-                        "id",
-                        0,
-                    )
-                )
+                int(item.get("id", 0))
             )
 
         except Exception:
@@ -350,45 +291,39 @@ def main_keyboard(
     buttons = [
 
         [
-
             InlineKeyboardButton(
-                "👗 محصولات",
+                "ًں‘— ظ…ط­طµظˆظ„ط§طھ",
                 callback_data="products",
             ),
 
             InlineKeyboardButton(
-                "🛒 سبد خرید",
+                "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯",
                 callback_data="cart",
             ),
-
         ],
 
         [
-
             InlineKeyboardButton(
-                "📦 سفارش‌های من",
+                "ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§غŒ ظ…ظ†",
                 callback_data="my_orders",
             ),
 
             InlineKeyboardButton(
-                "🔎 جستجوی محصول",
+                "ًں”ژ ط¬ط³طھط¬ظˆغŒ ظ…ط­طµظˆظ„",
                 callback_data="search",
             ),
-
         ],
 
         [
-
             InlineKeyboardButton(
-                "🧵 دوخت سفارشی",
+                "ًں§µ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ",
                 callback_data="custom",
             ),
 
             InlineKeyboardButton(
-                "📞 تماس با ما",
+                "ًں“‍ طھظ…ط§ط³ ط¨ط§ ظ…ط§",
                 callback_data="contact",
             ),
-
         ],
 
     ]
@@ -397,12 +332,10 @@ def main_keyboard(
 
         buttons.append(
             [
-
                 InlineKeyboardButton(
-                    "⚙️ مدیریت فروشگاه",
+                    "âڑ™ï¸ڈ ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡",
                     callback_data="admin",
                 )
-
             ]
         )
 
@@ -415,16 +348,12 @@ def home_button():
 
     return InlineKeyboardMarkup(
         [
-
             [
-
                 InlineKeyboardButton(
-                    "🏠 صفحه اصلی",
+                    "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
                     callback_data="home",
                 )
-
             ]
-
         ]
     )
 
@@ -449,17 +378,17 @@ async def start(
 
     await update.message.reply_text(
 
-        f"👋 سلام {user.first_name or 'دوست عزیز'}\n\n"
+        f"ًں‘‹ ط³ظ„ط§ظ… {user.first_name or 'ط¯ظˆط³طھ ط¹ط²غŒط²'}\n\n"
 
-        "🌸 به فروشگاه\n"
+        "ًںŒ¸ ط¨ظ‡ ظپط±ظˆط´ع¯ط§ظ‡\n"
         "Mohammadi Fashion\n"
-        "خوش آمدید.\n\n"
+        "ط®ظˆط´ ط¢ظ…ط¯غŒط¯.\n\n"
 
-        "👗 لباس‌های زنانه\n"
-        "🧵 دوخت سفارشی\n"
-        "🛒 ثبت سفارش آسان\n\n"
+        "ًں‘— ظ„ط¨ط§ط³â€Œظ‡ط§غŒ ط²ظ†ط§ظ†ظ‡\n"
+        "ًں§µ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ\n"
+        "ًں›’ ط«ط¨طھ ط³ظپط§ط±ط´ ط¢ط³ط§ظ†\n\n"
 
-        "یکی از گزینه‌های زیر را انتخاب کنید:",
+        "غŒع©غŒ ط§ط² ع¯ط²غŒظ†ظ‡â€Œظ‡ط§غŒ ط²غŒط± ط±ط§ ط§ظ†طھط®ط§ط¨ ع©ظ†غŒط¯:",
 
         reply_markup=main_keyboard(
             user.id
@@ -478,15 +407,15 @@ async def help_command(
 
     await update.message.reply_text(
 
-        "📖 راهنمای Mohammadi Fashion\n\n"
+        "ًں“– ط±ط§ظ‡ظ†ظ…ط§غŒ Mohammadi Fashion\n\n"
 
-        "/start — صفحه اصلی\n"
-        "/products — محصولات\n"
-        "/cart — سبد خرید\n"
-        "/orders — سفارش‌های من\n"
-        "/cancel — لغو عملیات\n\n"
+        "/start â€” طµظپط­ظ‡ ط§طµظ„غŒ\n"
+        "/products â€” ظ…ط­طµظˆظ„ط§طھ\n"
+        "/cart â€” ط³ط¨ط¯ ط®ط±غŒط¯\n"
+        "/orders â€” ط³ظپط§ط±ط´â€Œظ‡ط§غŒ ظ…ظ†\n"
+        "/cancel â€” ظ„ط؛ظˆ ط¹ظ…ظ„غŒط§طھ\n\n"
 
-        "برای استفاده آسان‌تر از دکمه‌های فروشگاه استفاده کنید.",
+        "ط¨ط±ط§غŒ ط§ط³طھظپط§ط¯ظ‡ ط¢ط³ط§ظ†â€Œطھط± ط§ط² ط¯ع©ظ…ظ‡â€Œظ‡ط§غŒ ظپط±ظˆط´ع¯ط§ظ‡ ط§ط³طھظپط§ط¯ظ‡ ع©ظ†غŒط¯.",
 
         reply_markup=main_keyboard(
             update.effective_user.id
@@ -507,7 +436,7 @@ async def cancel(
 
     await update.message.reply_text(
 
-        "❌ عملیات لغو شد.",
+        "â‌Œ ط¹ظ…ظ„غŒط§طھ ظ„ط؛ظˆ ط´ط¯.",
 
         reply_markup=main_keyboard(
             update.effective_user.id
@@ -529,10 +458,10 @@ async def show_products(
 
         await query.edit_message_text(
 
-            "👗 محصولات فروشگاه\n\n"
+            "ًں‘— ظ…ط­طµظˆظ„ط§طھ ظپط±ظˆط´ع¯ط§ظ‡\n\n"
 
-            "فعلاً محصولی ثبت نشده است.\n"
-            "مدیریت می‌تواند از پنل مدیریت محصول اضافه کند.",
+            "ظپط¹ظ„ط§ظ‹ ظ…ط­طµظˆظ„غŒ ط«ط¨طھ ظ†ط´ط¯ظ‡ ط§ط³طھ.\n"
+            "ظ…ط¯غŒط±غŒطھ ظ…غŒâ€Œطھظˆط§ظ†ط¯ ط§ط² ظ¾ظ†ظ„ ظ…ط¯غŒط±غŒطھ ظ…ط­طµظˆظ„ ط§ط¶ط§ظپظ‡ ع©ظ†ط¯.",
 
             reply_markup=home_button(),
         )
@@ -545,7 +474,7 @@ async def show_products(
 
         name = product.get(
             "name",
-            "محصول",
+            "ظ…ط­طµظˆظ„",
         )
 
         price = product.get(
@@ -556,33 +485,27 @@ async def show_products(
         keyboard.append(
 
             [
-
                 InlineKeyboardButton(
-                    f"👗 {name} — {price} افغانی",
+                    f"ًں‘— {name} â€” {price} ط§ظپط؛ط§ظ†غŒ",
                     callback_data=f"product:{product.get('id')}",
                 )
-
             ]
-
         )
 
     keyboard.append(
 
         [
-
             InlineKeyboardButton(
-                "🏠 صفحه اصلی",
+                "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
                 callback_data="home",
             )
-
         ]
-
     )
 
     await query.edit_message_text(
 
-        "👗 محصولات Mohammadi Fashion\n\n"
-        "یک محصول را انتخاب کنید:",
+        "ًں‘— ظ…ط­طµظˆظ„ط§طھ Mohammadi Fashion\n\n"
+        "غŒع© ظ…ط­طµظˆظ„ ط±ط§ ط§ظ†طھط®ط§ط¨ ع©ظ†غŒط¯:",
 
         reply_markup=InlineKeyboardMarkup(
             keyboard
@@ -606,9 +529,7 @@ async def show_product(
     if not product:
 
         await query.edit_message_text(
-
-            "❌ محصول پیدا نشد.",
-
+            "â‌Œ ظ…ط­طµظˆظ„ ظ¾غŒط¯ط§ ظ†ط´ط¯.",
             reply_markup=home_button(),
         )
 
@@ -616,7 +537,7 @@ async def show_product(
 
     name = product.get(
         "name",
-        "محصول",
+        "ظ…ط­طµظˆظ„",
     )
 
     price = product.get(
@@ -636,43 +557,39 @@ async def show_product(
 
     text = (
 
-        f"👗 {name}\n\n"
+        f"ًں‘— {name}\n\n"
 
-        f"💰 قیمت: {price} افغانی\n"
+        f"ًں’° ظ‚غŒظ…طھ: {price} ط§ظپط؛ط§ظ†غŒ\n"
 
-        f"📦 موجودی: {stock}\n\n"
+        f"ًں“¦ ظ…ظˆط¬ظˆط¯غŒ: {stock}\n\n"
 
     )
 
     if description:
 
         text += (
-            f"📝 {description}\n\n"
+            f"ًں“‌ {description}\n\n"
         )
 
     keyboard = [
 
         [
-
             InlineKeyboardButton(
-                "🛒 افزودن به سبد",
+                "ًں›’ ط§ظپط²ظˆط¯ظ† ط¨ظ‡ ط³ط¨ط¯",
                 callback_data=f"add:{product_id}",
             )
-
         ],
 
         [
-
             InlineKeyboardButton(
-                "⬅️ محصولات",
+                "â¬…ï¸ڈ ظ…ط­طµظˆظ„ط§طھ",
                 callback_data="products",
             ),
 
             InlineKeyboardButton(
-                "🏠 خانه",
+                "ًںڈ  ط®ط§ظ†ظ‡",
                 callback_data="home",
             ),
-
         ],
 
     ]
@@ -746,7 +663,7 @@ async def show_cart(
 
         await query.edit_message_text(
 
-            "🛒 سبد خرید شما خالی است.",
+            "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯ ط´ظ…ط§ ط®ط§ظ„غŒ ط§ط³طھ.",
 
             reply_markup=home_button(),
         )
@@ -754,7 +671,7 @@ async def show_cart(
         return
 
     lines = [
-        "🛒 سبد خرید شما\n"
+        "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯ ط´ظ…ط§\n"
     ]
 
     for product_id in cart:
@@ -767,44 +684,37 @@ async def show_cart(
 
             lines.append(
 
-                f"• {product.get('name')}\n"
-                f"  {product.get('price')} افغانی"
+                f"â€¢ {product.get('name')}\n"
+                f"  {product.get('price')} ط§ظپط؛ط§ظ†غŒ"
 
             )
 
     lines.append(
 
-        f"\n💰 مجموع: {cart_total(context):g} افغانی"
-
+        f"\nًں’° ظ…ط¬ظ…ظˆط¹: {cart_total(context):g} ط§ظپط؛ط§ظ†غŒ"
     )
 
     keyboard = [
 
         [
-
             InlineKeyboardButton(
-                "📱 ثبت سفارش",
+                "ًں“± ط«ط¨طھ ط³ظپط§ط±ط´",
                 callback_data="checkout",
             )
-
         ],
 
         [
-
             InlineKeyboardButton(
-                "🗑 خالی کردن سبد",
+                "ًں—‘ ط®ط§ظ„غŒ ع©ط±ط¯ظ† ط³ط¨ط¯",
                 callback_data="clear_cart",
             )
-
         ],
 
         [
-
             InlineKeyboardButton(
-                "🏠 صفحه اصلی",
+                "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
                 callback_data="home",
             )
-
         ],
 
     ]
@@ -896,7 +806,7 @@ def create_order(
 
         "total": total,
 
-        "status": "جدید",
+        "status": "ط¬ط¯غŒط¯",
 
         "created_at": datetime.now().isoformat(),
 
@@ -941,12 +851,13 @@ async def buttons(
         user_id,
     )
 
+
     # HOME
     if data == "home":
 
         await query.edit_message_text(
 
-            "🏠 صفحه اصلی Mohammadi Fashion",
+            "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ Mohammadi Fashion",
 
             reply_markup=main_keyboard(
                 user_id
@@ -954,6 +865,7 @@ async def buttons(
         )
 
         return
+
 
     # PRODUCTS
     if data == "products":
@@ -963,6 +875,7 @@ async def buttons(
         )
 
         return
+
 
     # PRODUCT
     if data.startswith(
@@ -981,6 +894,7 @@ async def buttons(
 
         return
 
+
     # ADD CART
     if data.startswith(
         "add:"
@@ -998,9 +912,7 @@ async def buttons(
         if not product:
 
             await query.edit_message_text(
-
-                "❌ محصول پیدا نشد.",
-
+                "â‌Œ ظ…ط­طµظˆظ„ ظ¾غŒط¯ط§ ظ†ط´ط¯.",
                 reply_markup=home_button(),
             )
 
@@ -1023,7 +935,7 @@ async def buttons(
 
             await query.edit_message_text(
 
-                "❌ این محصول فعلاً موجود نیست.",
+                "â‌Œ ط§غŒظ† ظ…ط­طµظˆظ„ ظپط¹ظ„ط§ظ‹ ظ…ظˆط¬ظˆط¯ ظ†غŒط³طھ.",
 
                 reply_markup=home_button(),
             )
@@ -1042,46 +954,40 @@ async def buttons(
 
         await query.edit_message_text(
 
-            f"✅ {product.get('name')}\n"
-            "به سبد خرید اضافه شد.",
+            f"âœ… {product.get('name')}\n"
+            "ط¨ظ‡ ط³ط¨ط¯ ط®ط±غŒط¯ ط§ط¶ط§ظپظ‡ ط´ط¯.",
 
             reply_markup=InlineKeyboardMarkup(
 
                 [
 
                     [
-
                         InlineKeyboardButton(
-                            "🛒 سبد خرید",
+                            "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯",
                             callback_data="cart",
                         )
-
                     ],
 
                     [
-
                         InlineKeyboardButton(
-                            "👗 محصولات",
+                            "ًں‘— ظ…ط­طµظˆظ„ط§طھ",
                             callback_data="products",
                         )
-
                     ],
 
                     [
-
                         InlineKeyboardButton(
-                            "🏠 خانه",
+                            "ًںڈ  ط®ط§ظ†ظ‡",
                             callback_data="home",
                         )
-
                     ],
 
                 ]
-
             ),
         )
 
         return
+
 
     # CART
     if data == "cart":
@@ -1093,6 +999,7 @@ async def buttons(
 
         return
 
+
     # CLEAR CART
     if data == "clear_cart":
 
@@ -1102,12 +1009,13 @@ async def buttons(
 
         await query.edit_message_text(
 
-            "🗑 سبد خرید خالی شد.",
+            "ًں—‘ ط³ط¨ط¯ ط®ط±غŒط¯ ط®ط§ظ„غŒ ط´ط¯.",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # CHECKOUT
     if data == "checkout":
@@ -1118,7 +1026,7 @@ async def buttons(
 
             await query.edit_message_text(
 
-                "🛒 سبد خرید خالی است.",
+                "ًں›’ ط³ط¨ط¯ ط®ط±غŒط¯ ط®ط§ظ„غŒ ط§ط³طھ.",
 
                 reply_markup=home_button(),
             )
@@ -1131,14 +1039,15 @@ async def buttons(
 
         await query.edit_message_text(
 
-            "📱 لطفاً شماره تماس خود را ارسال کنید.\n\n"
-            "مثال:\n"
+            "ًں“± ظ„ط·ظپط§ظ‹ ط´ظ…ط§ط±ظ‡ طھظ…ط§ط³ ط®ظˆط¯ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.\n\n"
+            "ظ…ط«ط§ظ„:\n"
             "07XXXXXXXX",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # MY ORDERS
     if data == "my_orders":
@@ -1163,7 +1072,7 @@ async def buttons(
 
             await query.edit_message_text(
 
-                "📦 شما هنوز سفارشی ثبت نکرده‌اید.",
+                "ًں“¦ ط´ظ…ط§ ظ‡ظ†ظˆط² ط³ظپط§ط±ط´غŒ ط«ط¨طھ ظ†ع©ط±ط¯ظ‡â€Œط§غŒط¯.",
 
                 reply_markup=home_button(),
             )
@@ -1171,16 +1080,16 @@ async def buttons(
             return
 
         lines = [
-            "📦 سفارش‌های شما\n"
+            "ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§غŒ ط´ظ…ط§\n"
         ]
 
         for order in user_orders[-10:]:
 
             lines.append(
 
-                f"🧾 سفارش #{order.get('id')}\n"
-                f"💰 {order.get('total', 0):g} افغانی\n"
-                f"📌 وضعیت: {order.get('status')}\n"
+                f"ًں§¾ ط³ظپط§ط±ط´ #{order.get('id')}\n"
+                f"ًں’° {order.get('total', 0):g} ط§ظپط؛ط§ظ†غŒ\n"
+                f"ًں“Œ ظˆط¶ط¹غŒطھ: {order.get('status')}\n"
 
             )
 
@@ -1193,6 +1102,7 @@ async def buttons(
 
         return
 
+
     # SEARCH
     if data == "search":
 
@@ -1202,12 +1112,13 @@ async def buttons(
 
         await query.edit_message_text(
 
-            "🔎 نام محصول مورد نظر را بنویسید.",
+            "ًں”ژ ظ†ط§ظ… ظ…ط­طµظˆظ„ ظ…ظˆط±ط¯ ظ†ط¸ط± ط±ط§ ط¨ظ†ظˆغŒط³غŒط¯.",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # CUSTOM
     if data == "custom":
@@ -1215,31 +1126,33 @@ async def buttons(
         context.user_data[
             "state"
         ] = "custom"
-
+        
         await query.edit_message_text(
 
-            "🧵 دوخت سفارشی\n\n"
-            "لطفاً توضیحات لباس مورد نظر خود را ارسال کنید.\n"
-            "مثلاً رنگ، مدل و اندازه.",
+            "ًں§µ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ\n\n"
+            "ظ„ط·ظپط§ظ‹ طھظˆط¶غŒط­ط§طھ ظ„ط¨ط§ط³ ظ…ظˆط±ط¯ ظ†ط¸ط± ط®ظˆط¯ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.\n"
+            "ظ…ط«ظ„ط§ظ‹ ط±ظ†ع¯طŒ ظ…ط¯ظ„ ظˆ ط§ظ†ط¯ط§ط²ظ‡.",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # CONTACT
     if data == "contact":
 
         await query.edit_message_text(
 
-            "📞 تماس با ما\n\n"
+            "ًں“‍ طھظ…ط§ط³ ط¨ط§ ظ…ط§\n\n"
             "Mohammadi Fashion\n\n"
-            "برای سفارش و معلومات بیشتر با مدیریت فروشگاه تماس بگیرید.",
+            "ط¨ط±ط§غŒ ط³ظپط§ط±ط´ ظˆ ظ…ط¹ظ„ظˆظ…ط§طھ ط¨غŒط´طھط± ط¨ط§ ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡ طھظ…ط§ط³ ط¨ع¯غŒط±غŒط¯.",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # ADMIN
     if data == "admin":
@@ -1249,7 +1162,7 @@ async def buttons(
         ):
 
             await query.edit_message_text(
-                "❌ دسترسی غیرمجاز."
+                "â‌Œ ط¯ط³طھط±ط³غŒ ط؛غŒط±ظ…ط¬ط§ط²."
             )
 
             return
@@ -1257,55 +1170,45 @@ async def buttons(
         keyboard = [
 
             [
-
                 InlineKeyboardButton(
-                    "📊 آمار",
+                    "ًں“ٹ ط¢ظ…ط§ط±",
                     callback_data="admin_stats",
                 )
-
             ],
 
             [
-
                 InlineKeyboardButton(
-                    "📦 سفارش‌ها",
+                    "ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§",
                     callback_data="admin_orders",
                 )
-
             ],
 
             [
-
                 InlineKeyboardButton(
-                    "➕ افزودن محصول",
+                    "â‍• ط§ظپط²ظˆط¯ظ† ظ…ط­طµظˆظ„",
                     callback_data="admin_add",
                 )
-
             ],
 
             [
-
                 InlineKeyboardButton(
-                    "🗑 حذف محصول",
+                    "ًں—‘ ط­ط°ظپ ظ…ط­طµظˆظ„",
                     callback_data="admin_delete",
                 )
-
             ],
 
             [
-
                 InlineKeyboardButton(
-                    "🏠 صفحه اصلی",
+                    "ًںڈ  طµظپط­ظ‡ ط§طµظ„غŒ",
                     callback_data="home",
                 )
-
             ],
 
         ]
 
         await query.edit_message_text(
 
-            "⚙️ پنل مدیریت Mohammadi Fashion",
+            "âڑ™ï¸ڈ ظ¾ظ†ظ„ ظ…ط¯غŒط±غŒطھ Mohammadi Fashion",
 
             reply_markup=InlineKeyboardMarkup(
                 keyboard
@@ -1313,6 +1216,7 @@ async def buttons(
         )
 
         return
+
 
     # ADMIN STATS
     if data == "admin_stats":
@@ -1333,15 +1237,16 @@ async def buttons(
 
         await query.edit_message_text(
 
-            "📊 آمار فروشگاه\n\n"
+            "ًں“ٹ ط¢ظ…ط§ط± ظپط±ظˆط´ع¯ط§ظ‡\n\n"
 
-            f"👗 محصولات: {product_count}\n"
-            f"📦 سفارش‌ها: {order_count}",
+            f"ًں‘— ظ…ط­طµظˆظ„ط§طھ: {product_count}\n"
+            f"ًں“¦ ط³ظپط§ط±ط´â€Œظ‡ط§: {order_count}",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # ADMIN ORDERS
     if data == "admin_orders":
@@ -1358,7 +1263,7 @@ async def buttons(
 
             await query.edit_message_text(
 
-                "📦 هنوز سفارشی وجود ندارد.",
+                "ًں“¦ ظ‡ظ†ظˆط² ط³ظپط§ط±ط´غŒ ظˆط¬ظˆط¯ ظ†ط¯ط§ط±ط¯.",
 
                 reply_markup=home_button(),
             )
@@ -1366,7 +1271,7 @@ async def buttons(
             return
 
         lines = [
-            "📦 آخرین سفارش‌ها\n"
+            "ًں“¦ ط¢ط®ط±غŒظ† ط³ظپط§ط±ط´â€Œظ‡ط§\n"
         ]
 
         for order in items[-20:]:
@@ -1375,7 +1280,7 @@ async def buttons(
 
                 f"#{order.get('id')} | "
                 f"{order.get('name')} | "
-                f"{order.get('total', 0):g} افغانی | "
+                f"{order.get('total', 0):g} ط§ظپط؛ط§ظ†غŒ | "
                 f"{order.get('status')}"
 
             )
@@ -1388,6 +1293,7 @@ async def buttons(
         )
 
         return
+
 
     # ADMIN ADD
     if data == "admin_add":
@@ -1404,13 +1310,14 @@ async def buttons(
 
         await query.edit_message_text(
 
-            "➕ افزودن محصول\n\n"
-            "نام محصول را ارسال کنید.",
+            "â‍• ط§ظپط²ظˆط¯ظ† ظ…ط­طµظˆظ„\n\n"
+            "ظ†ط§ظ… ظ…ط­طµظˆظ„ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.",
 
             reply_markup=home_button(),
         )
 
         return
+
 
     # ADMIN DELETE
     if data == "admin_delete":
@@ -1427,8 +1334,8 @@ async def buttons(
 
         await query.edit_message_text(
 
-            "🗑 حذف محصول\n\n"
-            "ID محصول را ارسال کنید.",
+            "ًں—‘ ط­ط°ظپ ظ…ط­طµظˆظ„\n\n"
+            "ID ظ…ط­طµظˆظ„ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯.",
 
             reply_markup=home_button(),
         )
@@ -1461,6 +1368,7 @@ async def text_handler(
         text,
     )
 
+
     # PHONE
     if state == "phone":
 
@@ -1474,8 +1382,8 @@ async def text_handler(
 
             await update.message.reply_text(
 
-                "❌ سفارش ثبت نشد.\n"
-                "لطفاً دوباره تلاش کنید.",
+                "â‌Œ ط³ظپط§ط±ط´ ط«ط¨طھ ظ†ط´ط¯.\n"
+                "ظ„ط·ظپط§ظ‹ ط¯ظˆط¨ط§ط±ظ‡ طھظ„ط§ط´ ع©ظ†غŒط¯.",
 
                 reply_markup=main_keyboard(
                     user.id
@@ -1486,13 +1394,13 @@ async def text_handler(
 
         await update.message.reply_text(
 
-            "✅ سفارش شما ثبت شد.\n\n"
+            "âœ… ط³ظپط§ط±ط´ ط´ظ…ط§ ط«ط¨طھ ط´ط¯.\n\n"
 
-            f"🧾 شماره سفارش: #{order['id']}\n"
-            f"💰 مبلغ: {order['total']:g} افغانی\n"
-            f"📱 شماره تماس: {order['phone']}\n\n"
+            f"ًں§¾ ط´ظ…ط§ط±ظ‡ ط³ظپط§ط±ط´: #{order['id']}\n"
+            f"ًں’° ظ…ط¨ظ„ط؛: {order['total']:g} ط§ظپط؛ط§ظ†غŒ\n"
+            f"ًں“± ط´ظ…ط§ط±ظ‡ طھظ…ط§ط³: {order['phone']}\n\n"
 
-            "مدیریت فروشگاه با شما تماس خواهد گرفت.",
+            "ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡ ط¨ط§ ط´ظ…ط§ طھظ…ط§ط³ ط®ظˆط§ظ‡ط¯ ع¯ط±ظپطھ.",
 
             reply_markup=main_keyboard(
                 user.id
@@ -1511,24 +1419,25 @@ async def text_handler(
 
                     text=(
 
-                        "🔔 سفارش جدید\n\n"
+                        "ًں”” ط³ظپط§ط±ط´ ط¬ط¯غŒط¯\n\n"
 
-                        f"🧾 سفارش: #{order['id']}\n"
-                        f"👤 مشتری: {order['name']}\n"
-                        f"📱 تماس: {order['phone']}\n"
-                        f"💰 مبلغ: {order['total']:g} افغانی"
+                        f"ًں§¾ ط³ظپط§ط±ط´: #{order['id']}\n"
+                        f"ًں‘¤ ظ…ط´طھط±غŒ: {order['name']}\n"
+                        f"ًں“± طھظ…ط§ط³: {order['phone']}\n"
+                        f"ًں’° ظ…ط¨ظ„ط؛: {order['total']:g} ط§ظپط؛ط§ظ†غŒ"
 
                     ),
                 )
 
             except Exception as error:
 
-                logger.exception(
+                logger.error(
                     "Admin notification error: %s",
                     error,
                 )
 
         return
+
 
     # SEARCH
     if state == "search":
@@ -1556,7 +1465,7 @@ async def text_handler(
 
             await update.message.reply_text(
 
-                "❌ محصولی با این نام پیدا نشد.",
+                "â‌Œ ظ…ط­طµظˆظ„غŒ ط¨ط§ ط§غŒظ† ظ†ط§ظ… ظ¾غŒط¯ط§ ظ†ط´ط¯.",
 
                 reply_markup=main_keyboard(
                     user.id
@@ -1572,40 +1481,31 @@ async def text_handler(
             keyboard.append(
 
                 [
-
                     InlineKeyboardButton(
-
                         product.get(
                             "name",
-                            "محصول"
+                            "ظ…ط­طµظˆظ„"
                         ),
-
                         callback_data=(
                             f"product:{product.get('id')}"
                         ),
-
                     )
-
                 ]
-
             )
 
         keyboard.append(
 
             [
-
                 InlineKeyboardButton(
-                    "🏠 خانه",
+                    "ًںڈ  ط®ط§ظ†ظ‡",
                     callback_data="home",
                 )
-
             ]
-
         )
 
         await update.message.reply_text(
 
-            "🔎 نتایج جستجو:",
+            "ًں”ژ ظ†طھط§غŒط¬ ط¬ط³طھط¬ظˆ:",
 
             reply_markup=InlineKeyboardMarkup(
                 keyboard
@@ -1614,6 +1514,7 @@ async def text_handler(
 
         return
 
+
     # CUSTOM SEWING
     if state == "custom":
 
@@ -1621,8 +1522,8 @@ async def text_handler(
 
         await update.message.reply_text(
 
-            "🧵 توضیحات دوخت سفارشی شما دریافت شد ✅\n\n"
-            "مدیریت فروشگاه بررسی می‌کند و با شما تماس می‌گیرد.",
+            "ًں§µ طھظˆط¶غŒط­ط§طھ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ ط´ظ…ط§ ط¯ط±غŒط§ظپطھ ط´ط¯ âœ…\n\n"
+            "ظ…ط¯غŒط±غŒطھ ظپط±ظˆط´ع¯ط§ظ‡ ط¨ط±ط±ط³غŒ ظ…غŒâ€Œع©ظ†ط¯ ظˆ ط¨ط§ ط´ظ…ط§ طھظ…ط§ط³ ظ…غŒâ€Œع¯غŒط±ط¯.",
 
             reply_markup=main_keyboard(
                 user.id
@@ -1641,23 +1542,24 @@ async def text_handler(
 
                     text=(
 
-                        "🧵 درخواست دوخت سفارشی\n\n"
+                        "ًں§µ ط¯ط±ط®ظˆط§ط³طھ ط¯ظˆط®طھ ط³ظپط§ط±ط´غŒ\n\n"
 
-                        f"👤 مشتری: {user.full_name}\n"
-                        f"🆔 User ID: {user.id}\n\n"
-                        f"📝 توضیحات:\n{text}"
+                        f"ًں‘¤ ظ…ط´طھط±غŒ: {user.full_name}\n"
+                        f"ًں†” User ID: {user.id}\n\n"
+                        f"ًں“‌ طھظˆط¶غŒط­ط§طھ:\n{text}"
 
                     ),
                 )
 
             except Exception as error:
 
-                logger.exception(
+                logger.error(
                     "Custom sewing notification error: %s",
                     error,
                 )
 
         return
+
 
     # ADMIN ADD NAME
     if is_admin(
@@ -1676,11 +1578,12 @@ async def text_handler(
 
         await update.message.reply_text(
 
-            "💰 قیمت محصول را به افغانی ارسال کنید."
+            "ًں’° ظ‚غŒظ…طھ ظ…ط­طµظˆظ„ ط±ط§ ط¨ظ‡ ط§ظپط؛ط§ظ†غŒ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
 
         )
 
         return
+
 
     # ADMIN PRICE
     if is_admin(
@@ -1699,7 +1602,7 @@ async def text_handler(
         except ValueError:
 
             await update.message.reply_text(
-                "❌ لطفاً فقط عدد قیمت را ارسال کنید."
+                "â‌Œ ظ„ط·ظپط§ظ‹ ظپظ‚ط· ط¹ط¯ط¯ ظ‚غŒظ…طھ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
             )
 
             return
@@ -1716,11 +1619,12 @@ async def text_handler(
 
         await update.message.reply_text(
 
-            "📦 موجودی محصول را ارسال کنید."
+            "ًں“¦ ظ…ظˆط¬ظˆط¯غŒ ظ…ط­طµظˆظ„ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
 
         )
 
         return
+
 
     # ADMIN STOCK
     if is_admin(
@@ -1736,7 +1640,7 @@ async def text_handler(
         except ValueError:
 
             await update.message.reply_text(
-                "❌ لطفاً فقط عدد موجودی را ارسال کنید."
+                "â‌Œ ظ„ط·ظپط§ظ‹ ظپظ‚ط· ط¹ط¯ط¯ ظ…ظˆط¬ظˆط¯غŒ ط±ط§ ط§ط±ط³ط§ظ„ ع©ظ†غŒط¯."
             )
 
             return
@@ -1776,7 +1680,7 @@ async def text_handler(
 
         await update.message.reply_text(
 
-            "✅ محصول با موفقیت اضافه شد.",
+            "âœ… ظ…ط­طµظˆظ„ ط¨ط§ ظ…ظˆظپظ‚غŒطھ ط§ط¶ط§ظپظ‡ ط´ط¯.",
 
             reply_markup=main_keyboard(
                 user.id
@@ -1784,6 +1688,7 @@ async def text_handler(
         )
 
         return
+
 
     # ADMIN DELETE
     if is_admin(
@@ -1814,7 +1719,7 @@ async def text_handler(
 
             await update.message.reply_text(
 
-                "❌ محصولی با این ID پیدا نشد."
+                "â‌Œ ظ…ط­طµظˆظ„غŒ ط¨ط§ ط§غŒظ† ID ظ¾غŒط¯ط§ ظ†ط´ط¯."
 
             )
 
@@ -1829,7 +1734,7 @@ async def text_handler(
 
         await update.message.reply_text(
 
-            "✅ محصول حذف شد.",
+            "âœ… ظ…ط­طµظˆظ„ ط­ط°ظپ ط´ط¯.",
 
             reply_markup=main_keyboard(
                 user.id
@@ -1838,12 +1743,13 @@ async def text_handler(
 
         return
 
+
     # NORMAL MESSAGE
     await update.message.reply_text(
 
-        "سلام 🌸\n\n"
-        "پیام شما دریافت شد.\n"
-        "برای استفاده از فروشگاه یکی از گزینه‌های زیر را انتخاب کنید.",
+        "ط³ظ„ط§ظ… ًںŒ¸\n\n"
+        "ظ¾غŒط§ظ… ط´ظ…ط§ ط¯ط±غŒط§ظپطھ ط´ط¯.\n"
+        "ط¨ط±ط§غŒ ط§ط³طھظپط§ط¯ظ‡ ط§ط² ظپط±ظˆط´ع¯ط§ظ‡ غŒع©غŒ ط§ط² ع¯ط²غŒظ†ظ‡â€Œظ‡ط§غŒ ط²غŒط± ط±ط§ ط§ظ†طھط®ط§ط¨ ع©ظ†غŒط¯.",
 
         reply_markup=main_keyboard(
             user.id
@@ -1860,7 +1766,7 @@ async def error_handler(
     context,
 ):
 
-    logger.exception(
+    logger.error(
         "TELEGRAM ERROR: %s",
         context.error,
     )
@@ -1870,7 +1776,39 @@ async def error_handler(
 # MAIN
 # ============================================================
 
-def build_application():
+def main():
+
+    # --------------------------------------------------------
+    # TOKEN CHECK
+    # --------------------------------------------------------
+
+    if not BOT_TOKEN:
+
+        raise RuntimeError(
+            "BOT_TOKEN is missing. "
+            "Add BOT_TOKEN in Render Environment Variables."
+        )
+
+    logger.info(
+        "BOT TOKEN loaded: True"
+    )
+
+
+    # --------------------------------------------------------
+    # RENDER WEB SERVER
+    # --------------------------------------------------------
+
+    web_thread = threading.Thread(
+        target=start_web_server,
+        daemon=True,
+    )
+
+    web_thread.start()
+
+
+    # --------------------------------------------------------
+    # TELEGRAM APPLICATION
+    # --------------------------------------------------------
 
     app = (
         Application
@@ -1883,7 +1821,10 @@ def build_application():
         "Telegram application created."
     )
 
+
+    # --------------------------------------------------------
     # COMMANDS
+    # --------------------------------------------------------
 
     app.add_handler(
         CommandHandler(
@@ -1906,7 +1847,10 @@ def build_application():
         )
     )
 
+
+    # --------------------------------------------------------
     # BUTTONS
+    # --------------------------------------------------------
 
     app.add_handler(
         CallbackQueryHandler(
@@ -1914,150 +1858,53 @@ def build_application():
         )
     )
 
+
+    # --------------------------------------------------------
     # TEXT
+    # --------------------------------------------------------
 
     app.add_handler(
+
         MessageHandler(
+
             filters.TEXT
             & ~filters.COMMAND,
+
             text_handler,
+
         )
+
     )
 
+
+    # --------------------------------------------------------
     # ERROR
+    # --------------------------------------------------------
 
     app.add_error_handler(
         error_handler
     )
 
-    return app
 
-
-def start_web_server_once():
-
-    web_thread = threading.Thread(
-        target=start_web_server,
-        name="flask-web",
-        daemon=True,
-    )
-
-    web_thread.start()
+    # --------------------------------------------------------
+    # START POLLING
+    # --------------------------------------------------------
 
     logger.info(
-        "Flask web server thread started."
+        "Mohammadi Fashion Bot is running..."
     )
-
-
-def run_telegram_once():
-
-    app = None
-
-    try:
-
-        app = build_application()
-
-        logger.info(
-            "Starting Telegram polling..."
-        )
-
-        app.run_polling(
-            drop_pending_updates=True,
-            allowed_updates=Update.ALL_TYPES,
-            close_loop=False,
-        )
-
-        logger.warning(
-            "Telegram polling stopped normally."
-        )
-
-    finally:
-
-        logger.info(
-            "Telegram polling cycle ended."
-        )
-
-
-def main():
-
-    # TOKEN CHECK
-
-    if not BOT_TOKEN:
-
-        raise RuntimeError(
-            "BOT_TOKEN is missing. "
-            "Add BOT_TOKEN in Render Environment Variables."
-        )
 
     logger.info(
-        "BOT TOKEN loaded: True"
+        "Starting Telegram polling..."
     )
 
-    # RENDER WEB SERVER
+    app.run_polling(
 
-    start_web_server_once()
+        drop_pending_updates=True,
 
-    # TELEGRAM SUPERVISOR
+        allowed_updates=Update.ALL_TYPES,
 
-    restart_delay = 5
-    max_restart_delay = 60
-
-    while True:
-
-        try:
-
-            logger.info(
-                "Starting Telegram bot supervisor cycle..."
-            )
-
-            run_telegram_once()
-
-            logger.warning(
-                "Telegram polling returned. Restarting in %s seconds...",
-                restart_delay,
-            )
-
-            time.sleep(
-                restart_delay
-            )
-
-            restart_delay = 5
-
-        except KeyboardInterrupt:
-
-            logger.info(
-                "Bot stopped by keyboard interrupt."
-            )
-
-            break
-
-        except SystemExit:
-
-            logger.info(
-                "Bot received SystemExit."
-            )
-
-            break
-
-        except Exception as error:
-
-            logger.exception(
-                "FATAL TELEGRAM/POLLING ERROR: %s",
-                error,
-            )
-
-            logger.warning(
-                "Bot will automatically restart in %s seconds.",
-                restart_delay,
-            )
-
-            time.sleep(
-                restart_delay
-            )
-
-            restart_delay = min(
-                restart_delay * 2,
-                max_restart_delay,
-            )
+    )
 
 
 # ============================================================
@@ -2066,22 +1913,4 @@ def main():
 
 if __name__ == "__main__":
 
-    try:
-
-        main()
-
-    except KeyboardInterrupt:
-
-        logger.info(
-            "Mohammadi Fashion Bot stopped."
-        )
-
-    except Exception as error:
-
-        logger.exception(
-            "UNHANDLED STARTUP ERROR: %s",
-            error,
-        )
-
-        raise
-```
+    main()
